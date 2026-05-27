@@ -50,8 +50,9 @@ class Team(Base):
     requirements   = Column(Text, default="")   # 팀 참여 요건 (연락처, 지원 조건 등)
     submitted      = Column(Boolean, default=False)
     submitted_at   = Column(DateTime, nullable=True)
-    submitted_docs = Column(Text, default="[]")   # JSON: 실제 제출한 서류 목록
-    created_at     = Column(DateTime, default=datetime.now)
+    submitted_docs   = Column(Text, default="[]")   # JSON: 실제 제출한 서류 체크 목록
+    submission_files = Column(Text, default="[]")   # JSON: 업로드된 제출 파일 목록
+    created_at       = Column(DateTime, default=datetime.now)
 
 
 class TeamMember(Base):

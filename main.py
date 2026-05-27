@@ -868,7 +868,8 @@ async def detail(request: Request, comp_id: int, db: Session = Depends(get_db)):
         t.members = tm_by_team.get(t.id, [])
 
     today = _today()
-    submission_window = comp.deadline < today <= comp.deadline + timedelta(days=7)
+    # 접수 시작~마감 후 30일까지 제출 기록 허용 (팀장·관리자 기준)
+    submission_window = today <= comp.deadline + timedelta(days=30)
 
     # 스크랩 여부
     cm = _current_member(request, db)
@@ -3124,25 +3125,47 @@ async def record_submission(
     participant_ids: List[int] = Form(default=[]),
     submitted_docs: List[str] = Form(default=[]),
     custom_doc: str = Form(""),
+    submission_files: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
-    if not _is_privileged(request, db):
+    # 관리자 또는 해당 팀의 팀장만 허용
+    cm = _current_member(request, db)
+    is_team_leader = False
+    if cm:
+        ldr = db.query(TeamMember).filter(
+            TeamMember.team_id == team_id,
+            TeamMember.is_leader == True,
+            or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name),
+        ).first()
+        is_team_leader = bool(ldr)
+    if not (_is_privileged(request, db) or is_team_leader):
         raise HTTPException(status_code=403)
+
     team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
     if not team:
         raise HTTPException(status_code=404)
     comp = db.query(Competition).filter(Competition.id == comp_id).first()
     today = _today()
-    if not (comp.deadline < today <= comp.deadline + timedelta(days=7)):
-        raise HTTPException(status_code=400, detail="제출 기록 기간이 아닙니다.")
+    if today > comp.deadline + timedelta(days=30):
+        raise HTTPException(status_code=400, detail="제출 기록 기간이 지났습니다. (마감 후 30일 초과)")
+
     db.query(TeamMember).filter(TeamMember.team_id == team_id).update({"is_participant": False})
     if participant_ids:
-        db.query(TeamMember).filter(TeamMember.team_id == team_id, TeamMember.id.in_(participant_ids)).update({"is_participant": True})
-    # 제출 서류 기록
+        db.query(TeamMember).filter(
+            TeamMember.team_id == team_id, TeamMember.id.in_(participant_ids)
+        ).update({"is_participant": True})
+
+    # 제출 서류 체크 목록
     docs = list(submitted_docs)
     if custom_doc.strip():
         docs.append(custom_doc.strip())
     team.submitted_docs = json.dumps(docs, ensure_ascii=False)
+
+    # 제출 파일 업로드 (기존 파일 유지 + 새 파일 추가)
+    existing_files = _from_json(team.submission_files or "[]")
+    new_files = await _save_files(submission_files)
+    team.submission_files = json.dumps(existing_files + new_files, ensure_ascii=False)
+
     team.submitted = True
     team.submitted_at = _now()
     db.commit()

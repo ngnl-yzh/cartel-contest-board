@@ -343,8 +343,9 @@
         {% set all_approved = team.members | selectattr('status', 'equalto', 'approved') | list %}
         {% set req_docs = comp.submission_docs | fromjson if comp.submission_docs else [] %}
         {% set done_docs = team.submitted_docs | fromjson if team.submitted_docs else [] %}
+        {% set sub_files = team.submission_files | fromjson if team.submission_files else [] %}
 
-        {% if is_privileged and submission_window %}
+        {% if (is_privileged or team.id in leader_team_ids) and submission_window %}
         <div class="submission-box" style="margin-top:12px">
 
           {# 제출 완료 상태 표시 #}
@@ -355,11 +356,22 @@
               <div style="flex:1;min-width:0">
                 <strong style="font-size:.9rem">공모전 참여 완료</strong>
                 <span style="font-size:.78rem;color:var(--muted);margin-left:6px">{{ team.submitted_at.strftime('%m/%d %H:%M') }} 기록</span>
-                {# 제출 서류 칩 #}
+                {# 제출 서류 체크 칩 #}
                 {% if done_docs %}
                 <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
                   {% for doc in done_docs %}
                   <span class="doc-chip doc-chip-done">✓ {{ doc }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {# 업로드된 파일 목록 #}
+                {% if sub_files %}
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+                  {% for f in sub_files %}
+                  <a href="/uploads/{{ f.path }}" download="{{ f.name }}"
+                     style="font-size:.8rem;display:inline-flex;align-items:center;gap:4px;color:var(--primary)">
+                    📎 {{ f.name }}
+                  </a>
                   {% endfor %}
                 </div>
                 {% endif %}
@@ -381,7 +393,8 @@
           {# 제출 기록 폼 #}
           <div id="subForm_{{ team.id }}" {% if team.submitted %}style="display:none;margin-top:1rem"{% endif %}>
             <h4 class="submission-title">📋 공모전 참여 · 제출 서류 기록</h4>
-            <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/submit">
+            <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/submit"
+                  enctype="multipart/form-data">
 
               {# 1. 제출 서류 체크 #}
               <p style="font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 8px">제출한 서류를 모두 선택하세요</p>
@@ -411,6 +424,22 @@
               <input type="text" name="custom_doc" placeholder="기타 서류 직접 입력 (선택)"
                      class="form-control" style="font-size:.83rem;margin-bottom:12px">
 
+              {# 서류 파일 업로드 #}
+              <div style="margin-bottom:12px">
+                <p style="font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 6px">📎 서류 파일 첨부 <small style="font-weight:400">(PDF·HWP·PPT·이미지 등, 복수 선택 가능)</small></p>
+                <input type="file" name="submission_files" multiple
+                       accept=".pdf,.hwp,.hwpx,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png,.zip"
+                       style="font-size:.82rem">
+                {# 기존 업로드 파일 표시 #}
+                {% if sub_files %}
+                <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+                  {% for f in sub_files %}
+                  <span style="font-size:.78rem;color:var(--muted)">📎 {{ f.name }} <small>(이미 업로드됨)</small></span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+
               {# 2. 참여 팀원 #}
               <p style="font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 8px">참여 팀원을 선택하세요</p>
               <div class="participant-check-grid">
@@ -438,6 +467,16 @@
             <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">
               {% for doc in done_docs %}
               <span class="doc-chip doc-chip-done">✓ {{ doc }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if sub_files %}
+            <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+              {% for f in sub_files %}
+              <a href="/uploads/{{ f.path }}" download="{{ f.name }}"
+                 style="font-size:.8rem;display:inline-flex;align-items:center;gap:4px;color:var(--primary)">
+                📎 {{ f.name }}
+              </a>
               {% endfor %}
             </div>
             {% endif %}
