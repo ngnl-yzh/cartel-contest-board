@@ -102,27 +102,14 @@
             </td>
           </tr>
           {% if review_dates_list %}
-            {% if is_admin or is_participating %}
-              {% for rd in review_dates_list %}
-              {% if rd.date %}
-              <tr>
-                <th>{{ rd.label or '심사' }}</th>
-                <td>{{ rd.date }}</td>
-              </tr>
-              {% endif %}
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="2" class="review-locked">
-                  🔒 심사 일정은 참가 팀에게만 공개됩니다.
-                  {% if current_member %}
-                    <br><small class="muted">아래에서 팀을 만들거나 참가하면 확인할 수 있어요.</small>
-                  {% else %}
-                    <br><small class="muted"><a href="/login">로그인</a> 후 팀에 참가하면 확인할 수 있어요.</small>
-                  {% endif %}
-                </td>
-              </tr>
+            {% for rd in review_dates_list %}
+            {% if rd.date %}
+            <tr>
+              <th>{{ rd.label or '심사' }}</th>
+              <td>{{ rd.date }}</td>
+            </tr>
             {% endif %}
+            {% endfor %}
           {% endif %}
           {% if comp.announcement_date %}
           <tr>
