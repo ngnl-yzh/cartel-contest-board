@@ -60,7 +60,7 @@
       {% if comp.description %}
       <section class="detail-section">
         <h2 class="section-title">공모전 소개</h2>
-        <div class="markdown-body" data-markdown data-raw="{{ comp.description | e }}"></div>
+        <div class="markdown-body">{{ comp.description | markdown | safe }}</div>
       </section>
       {% endif %}
 

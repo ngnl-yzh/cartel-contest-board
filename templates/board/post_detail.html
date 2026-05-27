@@ -27,7 +27,7 @@
       </div>
 
       {# 내용 #}
-      <div class="post-content markdown-body" id="postContent" data-raw="{{ post.content | e }}"></div>
+      <div class="post-content markdown-body" id="postContent">{{ post.content | markdown | safe }}</div>
 
       {# 이미지 #}
       {% if images %}
@@ -171,10 +171,9 @@
 
 {% block scripts %}
 <script>
-// 내용 마크다운 렌더링 + @멘션 처리
-document.querySelectorAll("[data-raw]").forEach(el => {
-  el.innerHTML = renderMentions(renderMarkdown(el.dataset.raw || ""));
-});
+// 내용 @멘션 처리 (마크다운은 서버에서 이미 렌더링됨)
+const _pc = document.getElementById("postContent");
+if (_pc) _pc.innerHTML = renderMentions(_pc.innerHTML || "");
 document.querySelectorAll(".mention-render").forEach(el => {
   el.innerHTML = renderMentions(renderMarkdown(el.textContent || ""));
 });

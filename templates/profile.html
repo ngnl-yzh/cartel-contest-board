@@ -115,7 +115,7 @@
     {% if target.intro_text %}
     <section class="profile-intro-section">
       <h2 class="section-title">소개</h2>
-      <div class="profile-intro-text markdown-body" data-raw="{{ target.intro_text | e }}"></div>
+      <div class="profile-intro-text markdown-body">{{ target.intro_text | markdown | safe }}</div>
     </section>
     {% endif %}
 

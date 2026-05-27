@@ -171,6 +171,21 @@ def _unique_filter(iterable):
 
 templates.env.filters["unique"] = _unique_filter
 
+
+import markdown as _md
+from markupsafe import Markup
+
+def _markdown_filter(text: str) -> str:
+    """서버사이드 마크다운 → HTML 변환 (nl2br, tables, fenced_code 지원)"""
+    if not text:
+        return ""
+    return _md.markdown(
+        text,
+        extensions=["nl2br", "tables", "fenced_code"],
+    )
+
+templates.env.filters["markdown"] = _markdown_filter
+
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin1234")
 from crawler import CONTESTKOREA_CATS as _CONTESTKOREA_CATS
 _DEFAULT_TAGS = list(_CONTESTKOREA_CATS)
