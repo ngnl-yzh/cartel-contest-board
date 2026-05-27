@@ -4318,16 +4318,17 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
     _FILE_EXTS = {"pdf", "hwp", "hwpx", "docx", "pptx", "xlsx", "zip"}
 
     # ── 결과 변수 초기화 ──────────────────────────────────────────────────────
-    saved_image:      Optional[str] = None
-    saved_files:      list          = []
-    page_text:        str           = ""
-    og_image_bytes:   Optional[bytes] = None
-    og_image_ctype:   str           = "image/jpeg"
-    attach_texts:     list[str]     = []   # PDF/HWP에서 추출한 텍스트
-    parsed:           dict          = {}
-    fetch_error:      str           = ""
-    gpt_text_error:   str           = ""
-    gpt_vision_error: str           = ""
+    saved_image:        Optional[str] = None
+    saved_files:        list          = []
+    page_text:          str           = ""
+    og_image_bytes:     Optional[bytes] = None
+    og_image_ctype:     str           = "image/jpeg"
+    content_img_list:   list          = []   # [(bytes, ctype), ...] 비전 분석용 이미지들
+    attach_texts:       list[str]     = []   # PDF/HWP에서 추출한 텍스트
+    parsed:             dict          = {}
+    fetch_error:        str           = ""
+    gpt_text_error:     str           = ""
+    gpt_vision_error:   str           = ""
 
     # ── 1. 페이지 fetch ───────────────────────────────────────────────────────
     try:
@@ -4349,7 +4350,7 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
             except Exception:
                 soup = _BS(resp.text, "html.parser")
 
-            # ── 1-b. og:image URL 추출 ───────────────────────────────────────
+            # ── 1-b. og:image URL + og:description 추출 ──────────────────────
             og_image_url = ""
             for _a in [
                 {"property": "og:image"},
@@ -4368,6 +4369,34 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
                     if _s and not _s.endswith(".gif") and len(_s) > 10:
                         og_image_url = _urljoin(link, _s)
                         break
+
+            # og:description / meta description 추출 → 본문 텍스트 보강용
+            og_description = ""
+            for _a in [
+                {"property": "og:description"},
+                {"name": "og:description"},
+                {"name": "description"},
+                {"property": "twitter:description"},
+            ]:
+                _m = soup.find("meta", attrs=_a)
+                if _m and len(str(_m.get("content", "")).strip()) > 20:
+                    og_description = str(_m["content"]).strip()
+                    break
+
+            # 본문 영역 내 콘텐츠 이미지 수집 (최대 3개, 비전 분석용)
+            _content_img_urls: list[str] = []
+            if og_image_url:
+                _content_img_urls.append(og_image_url)
+            # 메인 영역의 큰 이미지도 후보로 추가 (공모요강 포스터 이미지 대응)
+            for _img in soup.find_all("img", src=True):
+                _s = str(_img.get("src", "")).strip()
+                if not _s or _s.endswith(".gif"):
+                    continue
+                _full_s = _urljoin(link, _s)
+                if _full_s not in _content_img_urls:
+                    _content_img_urls.append(_full_s)
+                if len(_content_img_urls) >= 4:
+                    break
 
             # ── 1-c. 첨부파일 링크 수집 ─────────────────────────────────────
             _seen: set = set()
@@ -4480,13 +4509,15 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
             _body_text = re.sub(r"[ \t]+", " ", _raw)
             _body_text = re.sub(r"\n{3,}", "\n\n", _body_text).strip()
 
+            # og:description이 있으면 본문 앞에 추가 (JS 렌더링 페이지 보완)
+            _og_prefix = f"【페이지 요약】\n{og_description}\n\n" if og_description else ""
             # 정보 테이블을 앞에 붙여 GPT가 날짜·시상내역을 먼저 인식하게 함
-            page_text = (_info_text + _body_text)[:12000]
+            page_text = (_og_prefix + _info_text + _body_text)[:12000]
 
             _log.info("GPT추가 page_text %d자, 첨부%d개, og_image=%s — %s",
                       len(page_text), len(attach_links), bool(og_image_url), link)
 
-            # ── 1-e. og:image 다운로드 ───────────────────────────────────────
+            # ── 1-e. og:image + 콘텐츠 이미지 다운로드 ─────────────────────
             if og_image_url:
                 try:
                     _ir = await _cli.get(og_image_url, headers={"User-Agent": _UA})
@@ -4500,8 +4531,22 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
                             _ifn = f"{uuid.uuid4().hex}.{_ie}"
                             _storage_upload(_ir.content, _ifn, _ct or "image/jpeg")
                             saved_image = _ifn
+                            content_img_list.append((_ir.content, _ct))
                 except Exception as _e:
                     _log.warning("og:image 다운로드 실패: %s", _e)
+
+            # 추가 콘텐츠 이미지 다운로드 (공모요강 포스터 등 이미지 안의 텍스트 추출용)
+            for _cimg_url in _content_img_urls[1:4]:  # og:image 제외한 나머지, 최대 3장
+                if len(content_img_list) >= 3:
+                    break
+                try:
+                    _cr = await _cli.get(_cimg_url, headers={"User-Agent": _UA}, timeout=10)
+                    if _cr.status_code == 200 and _cr.content and _is_valid_image_bytes(_cr.content):
+                        _cct = _cr.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+                        if len(_cr.content) >= 20000:  # 20KB 이상인 이미지만 (포스터급)
+                            content_img_list.append((_cr.content, _cct))
+                except Exception:
+                    pass
 
             # ── 1-f. 첨부파일 다운로드 + 텍스트 추출 ────────────────────────
             for _att in attach_links[:5]:
@@ -4589,25 +4634,37 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
         gpt_text_error = f"추출된 텍스트 없음 (fetch 오류: {fetch_error})"
         _log.warning("GPT추가 - 텍스트 없음, 비전으로 fallback: %s", link)
 
-    # ── 3. GPT 비전 파싱 (텍스트 파싱 불완전 시 og:image로 보완) ─────────────
-    _needs_vision = og_image_bytes and _is_valid_image_bytes(og_image_bytes) and (
+    # ── 3. GPT 비전 파싱 (텍스트 파싱 불완전/설명 부족 시 이미지로 보완) ──────
+    # 설명이 200자 미만이거나 제목·마감일이 없으면 이미지 분석 실행
+    _desc_too_short = len(parsed.get("description", "")) < 200
+    _needs_vision = bool(content_img_list) and (
         not parsed.get("title")
         or not parsed.get("deadline")
-        or not parsed.get("description")
+        or _desc_too_short
     )
     if _needs_vision:
-        try:
-            _vp = await parse_image_file(og_image_bytes, og_image_ctype)
-            _log.info("GPT비전 파싱 성공: title=%s deadline=%s",
-                      _vp.get("title", "?"), _vp.get("deadline", "?"))
-            # 텍스트 파싱 결과를 비전으로 보완 (누락된 필드만)
-            for _k in ["title", "organizer", "deadline", "start_date", "announcement_date",
-                       "review_dates", "prize", "tags", "description", "link"]:
-                if not parsed.get(_k) and _vp.get(_k):
-                    parsed[_k] = _vp[_k]
-        except Exception as _e:
-            gpt_vision_error = f"{type(_e).__name__}: {_e}"
-            _log.warning("GPT비전 파싱 실패: %s", gpt_vision_error)
+        for _img_bytes, _img_ctype in content_img_list[:2]:  # 최대 2장 분석
+            try:
+                _vp = await parse_image_file(_img_bytes, _img_ctype)
+                _log.info("GPT비전 파싱 성공: title=%s deadline=%s desc=%d자",
+                          _vp.get("title", "?"), _vp.get("deadline", "?"),
+                          len(_vp.get("description", "")))
+                # 텍스트 파싱 결과를 비전으로 보완
+                for _k in ["title", "organizer", "deadline", "start_date", "announcement_date",
+                           "review_dates", "prize", "tags", "link"]:
+                    if not parsed.get(_k) and _vp.get(_k):
+                        parsed[_k] = _vp[_k]
+                # description은 더 긴 쪽을 사용
+                _vis_desc = _vp.get("description", "")
+                if len(_vis_desc) > len(parsed.get("description", "")):
+                    parsed["description"] = _vis_desc
+                    _log.info("GPT비전 description 채택 (%d자)", len(_vis_desc))
+                # 제목·마감일·설명이 충분해지면 중단
+                if parsed.get("title") and parsed.get("deadline") and len(parsed.get("description", "")) >= 200:
+                    break
+            except Exception as _e:
+                gpt_vision_error = f"{type(_e).__name__}: {_e}"
+                _log.warning("GPT비전 파싱 실패: %s", gpt_vision_error)
 
     # ── 4. 파싱 완전 실패 시 오류 표시 ───────────────────────────────────────
     if not parsed.get("title") and not parsed.get("deadline"):
