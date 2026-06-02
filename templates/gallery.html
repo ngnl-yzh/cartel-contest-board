@@ -94,6 +94,7 @@
               <span class="gl-event-date">{{ post.event_date.strftime('%Y.%m.%d') }}</span>
             {% endif %}
             {% if is_privileged %}
+              <button type="button" class="gl-edit-btn" onclick="toggleEditForm({{ post.id }})">수정</button>
               <form method="post" action="/gallery/{{ post.id }}/delete"
                     style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
                 <button type="submit" class="gl-delete-btn">삭제</button>
@@ -101,6 +102,70 @@
             {% endif %}
           </div>
         </div>
+
+        {# ── 인라인 수정 폼 ── #}
+        {% if is_privileged %}
+        <div id="editForm-{{ post.id }}" class="gl-edit-form" style="display:none">
+          <form method="post" action="/gallery/{{ post.id }}/edit" enctype="multipart/form-data">
+            <div class="gl-edit-grid">
+              <div style="grid-column:1/-1">
+                <label class="form-label">제목 *</label>
+                <input type="text" name="title" class="form-control" value="{{ post.title }}" required>
+              </div>
+              <div>
+                <label class="form-label">행사 유형</label>
+                <select name="event_type" class="form-control">
+                  {% for t in ['MT','개강총회','종강파티','수상','세미나','기타'] %}
+                    <option {% if post.event_type == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="form-label">행사 날짜</label>
+                <input type="date" name="event_date" class="form-control"
+                       value="{{ post.event_date.isoformat() if post.event_date else '' }}">
+              </div>
+              <div style="grid-column:1/-1">
+                <label class="form-label">설명</label>
+                <textarea name="description" class="form-control" rows="2">{{ post.description }}</textarea>
+              </div>
+
+              {# 기존 사진 관리 #}
+              {% if imgs %}
+              <div style="grid-column:1/-1">
+                <label class="form-label">기존 사진 (삭제할 사진 선택)</label>
+                <div class="gl-edit-thumbs">
+                  {% for img in imgs %}
+                  <label class="gl-edit-thumb-label">
+                    <input type="checkbox" name="delete_images" value="{{ img }}" class="gl-edit-thumb-chk">
+                    <img src="/uploads/{{ img }}" alt="">
+                    <span class="gl-edit-thumb-x">✕</span>
+                  </label>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
+              <div style="grid-column:1/-1">
+                <label class="form-label">사진 추가 (여러 장 선택 가능)</label>
+                <input type="file" name="add_images" class="form-control" multiple accept="image/*">
+              </div>
+              <div style="grid-column:1/-1">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                  <input type="checkbox" name="is_public" value="true"
+                         {% if post.is_public %}checked{% endif %}
+                         style="width:16px;height:16px;accent-color:var(--primary)">
+                  <span style="font-size:.88rem;font-weight:500">공개</span>
+                </label>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button type="submit" class="btn btn-primary btn-sm">저장</button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="toggleEditForm({{ post.id }})">취소</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
 
         {# 설명 #}
         {% if post.description %}
@@ -243,6 +308,18 @@
   font-size: .82rem;
   color: var(--muted);
 }
+.gl-edit-btn {
+  font-size: .75rem;
+  color: var(--cartel-blue, #3b82f6);
+  background: none;
+  border: 1px solid rgba(59,130,246,0.35);
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.gl-edit-btn:hover { background: rgba(59,130,246,0.07); }
+
 .gl-delete-btn {
   font-size: .75rem;
   color: var(--danger, #ef4444);
@@ -254,6 +331,59 @@
   transition: background .15s;
 }
 .gl-delete-btn:hover { background: rgba(239,68,68,0.06); }
+
+/* ── 인라인 수정 폼 ── */
+.gl-edit-form {
+  background: var(--surface, #f8faff);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.gl-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.gl-edit-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.gl-edit-thumb-label {
+  position: relative;
+  cursor: pointer;
+  display: block;
+}
+.gl-edit-thumb-label img {
+  width: 80px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  transition: border-color .15s, opacity .15s;
+}
+.gl-edit-thumb-chk { display: none; }
+.gl-edit-thumb-x {
+  position: absolute;
+  top: 2px; right: 2px;
+  background: rgba(239,68,68,0);
+  color: transparent;
+  font-size: .7rem;
+  border-radius: 50%;
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
+}
+.gl-edit-thumb-chk:checked + img {
+  border-color: #ef4444;
+  opacity: 0.45;
+}
+.gl-edit-thumb-chk:checked ~ .gl-edit-thumb-x {
+  background: #ef4444;
+  color: #fff;
+}
 
 .gl-event-desc {
   font-size: .85rem;
@@ -417,6 +547,15 @@
 </style>
 
 <script>
+// 갤러리 수정 폼 토글
+function toggleEditForm(postId) {
+  var form = document.getElementById('editForm-' + postId);
+  if (!form) return;
+  var isHidden = form.style.display === 'none' || form.style.display === '';
+  form.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 // 갤러리 추가 폼 토글
 (function () {
   const btn    = document.getElementById('newGalleryBtn');

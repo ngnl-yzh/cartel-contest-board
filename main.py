@@ -1426,6 +1426,8 @@ async def gallery_edit(
     event_type: str = Form("기타"),
     event_date: Optional[str] = Form(None),
     is_public: Optional[str] = Form(None),
+    delete_images: List[str] = Form(default=[]),
+    add_images: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
     if not _is_privileged(request, db):
@@ -1442,6 +1444,25 @@ async def gallery_edit(
             post.event_date = date.fromisoformat(event_date)
         except ValueError:
             pass
+
+    # 기존 이미지에서 삭제 선택된 것 제거
+    existing = _from_json(post.images or "[]")
+    kept = [img for img in existing if img not in delete_images]
+
+    # 새 이미지 추가
+    for img in add_images:
+        if img and img.filename:
+            ext = Path(img.filename).suffix.lower()
+            if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+                continue
+            data = await img.read()
+            if len(data) > 20 * 1024 * 1024:
+                continue
+            fname = f"{uuid.uuid4().hex}{ext}"
+            _storage_upload(data, fname, img.content_type or "image/jpeg")
+            kept.append(fname)
+
+    post.images = json.dumps(kept, ensure_ascii=False)
     db.commit()
     return RedirectResponse(url="/gallery", status_code=303)
 
