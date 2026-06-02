@@ -80,6 +80,7 @@
     <div id="galleryContainer">
       {% for post in posts %}
       {% set imgs = post.images | fromjson %}
+      {% set img_count = imgs | length %}
       <section class="gl-event-section" data-type="{{ post.event_type }}">
 
         {# 섹션 헤더 #}
@@ -108,12 +109,12 @@
 
         {# 사진 모자이크 #}
         {% if imgs %}
-        <div class="gl-mosaic gl-mosaic-{{ imgs | length | min(6) }}">
+        <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
           {% for img in imgs[:6] %}
             <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})">
               <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy">
-              {% if loop.last and imgs | length > 6 %}
-                <div class="gl-mosaic-more">+{{ imgs | length - 6 }}</div>
+              {% if loop.last and img_count > 6 %}
+                <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
               {% endif %}
             </div>
           {% endfor %}
