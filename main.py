@@ -466,6 +466,33 @@ MAX_IMAGE_SIZE = int(os.getenv("MAX_IMAGE_SIZE", str(10 * 1024 * 1024)))   # 10 
 MAX_FILE_SIZE  = int(os.getenv("MAX_FILE_SIZE",  str(50 * 1024 * 1024)))   # 50 MB
 
 
+def _optimize_image(data: bytes, max_px: int = 1920, quality: int = 85) -> tuple[bytes, str]:
+    """
+    이미지 자동 최적화:
+    - EXIF orientation 보정 (세로로 찍힌 사진 자동 회전)
+    - 최대 1920px로 리사이즈
+    - JPEG quality=85로 압축
+    - RGBA/P → RGB 변환
+    반환: (최적화된 bytes, 'image/jpeg')
+    """
+    try:
+        from PIL import Image, ImageOps
+        import io as _io
+        img = Image.open(_io.BytesIO(data))
+        img = ImageOps.exif_transpose(img)          # EXIF 회전 보정
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        if max(img.width, img.height) > max_px:
+            img.thumbnail((max_px, max_px), Image.LANCZOS)
+        buf = _io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return data, "image/jpeg"   # Pillow 실패 시 원본 그대로
+
+
 def _is_valid_image_bytes(content: bytes) -> bool:
     """매직 바이트로 실제 이미지 파일 여부 확인 (확장자 스푸핑 방지)"""
     if len(content) < 12:
@@ -1381,8 +1408,9 @@ async def gallery_new(
             data = await img.read()
             if len(data) > 20 * 1024 * 1024:
                 continue
-            fname = f"{uuid.uuid4().hex}{ext}"
-            _storage_upload(data, fname, img.content_type or "image/jpeg")
+            data, ctype = _optimize_image(data)   # 자동 리사이즈+압축+EXIF 보정
+            fname = f"{uuid.uuid4().hex}.jpg"
+            _storage_upload(data, fname, ctype)
             saved_images.append(fname)
 
     parsed_date = None
@@ -1459,8 +1487,9 @@ async def gallery_edit(
             data = await img.read()
             if len(data) > 20 * 1024 * 1024:
                 continue
-            fname = f"{uuid.uuid4().hex}{ext}"
-            _storage_upload(data, fname, img.content_type or "image/jpeg")
+            data, ctype = _optimize_image(data)   # 자동 리사이즈+압축+EXIF 보정
+            fname = f"{uuid.uuid4().hex}.jpg"
+            _storage_upload(data, fname, ctype)
             kept.append(fname)
 
     # 드래그로 지정한 순서 반영 (image_order: 콤마 구분 파일명)
