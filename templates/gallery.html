@@ -130,19 +130,33 @@
                 <textarea name="description" class="form-control" rows="2">{{ post.description }}</textarea>
               </div>
 
-              {# 기존 사진 관리 #}
+              {# 기존 사진 관리 — 드래그로 순서 변경 + 체크로 삭제 #}
               {% if imgs %}
               <div style="grid-column:1/-1">
-                <label class="form-label">기존 사진 (삭제할 사진 선택)</label>
-                <div class="gl-edit-thumbs">
+                <label class="form-label">
+                  사진 순서·삭제
+                  <span style="font-weight:400;color:var(--muted);font-size:.78rem;margin-left:6px">
+                    ⠿ 드래그로 순서 변경 &nbsp;·&nbsp; 사진 클릭으로 삭제 선택
+                  </span>
+                </label>
+                <div class="gl-edit-thumbs" id="sortable-{{ post.id }}">
                   {% for img in imgs %}
-                  <label class="gl-edit-thumb-label">
-                    <input type="checkbox" name="delete_images" value="{{ img }}" class="gl-edit-thumb-chk">
-                    <img src="/uploads/{{ img }}" alt="">
-                    <span class="gl-edit-thumb-x">✕</span>
-                  </label>
+                  <div class="gl-edit-thumb-wrap" draggable="true" data-fname="{{ img }}">
+                    <div class="gl-drag-handle" title="드래그로 순서 변경">⠿</div>
+                    <label class="gl-edit-thumb-label">
+                      <input type="checkbox" name="delete_images" value="{{ img }}" class="gl-edit-thumb-chk">
+                      <img src="/uploads/{{ img }}" alt="">
+                      <span class="gl-edit-thumb-x">✕</span>
+                    </label>
+                    {% if loop.first %}
+                      <span class="gl-thumb-badge">대표</span>
+                    {% endif %}
+                  </div>
                   {% endfor %}
                 </div>
+                <input type="hidden" name="image_order" class="gl-image-order"
+                       value="{{ imgs | join(',') }}">
+                <p class="gl-order-hint">첫 번째 사진이 모자이크에서 크게 표시됩니다</p>
               </div>
               {% endif %}
 
@@ -350,6 +364,56 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
+  min-height: 72px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--line);
+  background: var(--bg);
+}
+.gl-edit-thumb-wrap {
+  position: relative;
+  cursor: grab;
+  user-select: none;
+}
+.gl-edit-thumb-wrap:active { cursor: grabbing; }
+.gl-edit-thumb-wrap.dragging {
+  opacity: 0.35;
+  outline: 2px dashed var(--cartel-blue);
+  border-radius: 8px;
+}
+.gl-edit-thumb-wrap.drag-over {
+  outline: 2.5px solid var(--cartel-blue);
+  border-radius: 8px;
+}
+.gl-drag-handle {
+  position: absolute;
+  top: 2px; left: 2px;
+  z-index: 2;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: .75rem;
+  border-radius: 4px;
+  padding: 1px 3px;
+  line-height: 1;
+  pointer-events: none;
+}
+.gl-thumb-badge {
+  position: absolute;
+  bottom: 4px; left: 4px;
+  z-index: 2;
+  background: var(--cartel-blue);
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: .02em;
+  pointer-events: none;
+}
+.gl-order-hint {
+  font-size: .74rem;
+  color: var(--muted);
+  margin: 4px 0 0;
 }
 .gl-edit-thumb-label {
   position: relative;
@@ -357,12 +421,13 @@
   display: block;
 }
 .gl-edit-thumb-label img {
-  width: 80px;
-  height: 60px;
+  width: 90px;
+  height: 68px;
   object-fit: cover;
   border-radius: 6px;
   border: 2px solid transparent;
   transition: border-color .15s, opacity .15s;
+  display: block;
 }
 .gl-edit-thumb-chk { display: none; }
 .gl-edit-thumb-x {
@@ -553,7 +618,77 @@ function toggleEditForm(postId) {
   if (!form) return;
   var isHidden = form.style.display === 'none' || form.style.display === '';
   form.style.display = isHidden ? 'block' : 'none';
-  if (isHidden) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (isHidden) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    initSortable('sortable-' + postId);
+  }
+}
+
+// 드래그 정렬 초기화
+function initSortable(containerId) {
+  var container = document.getElementById(containerId);
+  if (!container || container._sortableInit) return;
+  container._sortableInit = true;
+
+  var dragging = null;
+
+  function updateBadge() {
+    container.querySelectorAll('.gl-thumb-badge').forEach(function(b){ b.remove(); });
+    var first = container.querySelector('.gl-edit-thumb-wrap');
+    if (first) {
+      var badge = document.createElement('span');
+      badge.className = 'gl-thumb-badge';
+      badge.textContent = '대표';
+      first.appendChild(badge);
+    }
+  }
+
+  function updateOrderInput() {
+    var fnames = Array.from(container.querySelectorAll('.gl-edit-thumb-wrap'))
+      .map(function(el){ return el.dataset.fname; });
+    var input = container.closest('form').querySelector('.gl-image-order');
+    if (input) input.value = fnames.join(',');
+  }
+
+  container.addEventListener('dragstart', function(e) {
+    var wrap = e.target.closest('.gl-edit-thumb-wrap');
+    if (!wrap) return;
+    dragging = wrap;
+    wrap.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  container.addEventListener('dragend', function() {
+    if (dragging) dragging.classList.remove('dragging');
+    container.querySelectorAll('.drag-over').forEach(function(el){
+      el.classList.remove('drag-over');
+    });
+    dragging = null;
+    updateBadge();
+    updateOrderInput();
+  });
+
+  container.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    if (!dragging) return;
+    var target = e.target.closest('.gl-edit-thumb-wrap');
+    if (!target || target === dragging) return;
+    container.querySelectorAll('.drag-over').forEach(function(el){
+      el.classList.remove('drag-over');
+    });
+    target.classList.add('drag-over');
+    var rect = target.getBoundingClientRect();
+    var insertBefore = e.clientX < rect.left + rect.width / 2;
+    if (insertBefore) {
+      container.insertBefore(dragging, target);
+    } else {
+      container.insertBefore(dragging, target.nextSibling);
+    }
+  });
+
+  container.addEventListener('drop', function(e) {
+    e.preventDefault();
+  });
 }
 
 // 갤러리 추가 폼 토글

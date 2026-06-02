@@ -1428,6 +1428,7 @@ async def gallery_edit(
     is_public: Optional[str] = Form(None),
     delete_images: List[str] = Form(default=[]),
     add_images: List[UploadFile] = File(default=[]),
+    image_order: str = Form(""),
     db: Session = Depends(get_db),
 ):
     if not _is_privileged(request, db):
@@ -1461,6 +1462,16 @@ async def gallery_edit(
             fname = f"{uuid.uuid4().hex}{ext}"
             _storage_upload(data, fname, img.content_type or "image/jpeg")
             kept.append(fname)
+
+    # 드래그로 지정한 순서 반영 (image_order: 콤마 구분 파일명)
+    if image_order:
+        order_list = [f.strip() for f in image_order.split(",") if f.strip()]
+        kept_set = set(kept)
+        # 순서대로 kept 이미지만 추출
+        ordered = [f for f in order_list if f in kept_set]
+        # image_order에 없는 항목(새로 추가된 것)은 뒤에 붙임
+        appended = [f for f in kept if f not in set(ordered)]
+        kept = ordered + appended
 
     post.images = json.dumps(kept, ensure_ascii=False)
     db.commit()
