@@ -188,11 +188,14 @@
         {% if imgs %}
         <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
           {% for img in imgs[:6] %}
-            <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})">
-              <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy">
+            <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})"
+                 {% if not is_privileged %}oncontextmenu="return false"{% endif %}>
+              <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy"
+                   {% if not is_privileged %}draggable="false"{% endif %}>
               {% if loop.last and img_count > 6 %}
                 <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
               {% endif %}
+              {% if not is_privileged %}<div class="gl-watermark">CARTEL</div>{% endif %}
             </div>
           {% endfor %}
         </div>
@@ -218,8 +221,12 @@
 <div class="c-lightbox" id="lightbox" onclick="closeLightboxIfBg(event)">
   <button class="c-lightbox-close" onclick="closeLightbox()">✕</button>
   <button class="c-lightbox-prev" onclick="lightboxNav(-1)">‹</button>
-  <img id="lightboxImg" src="" alt="">
+  <img id="lightboxImg" src="" alt=""
+       {% if not is_privileged %}draggable="false" oncontextmenu="return false"{% endif %}>
   <button class="c-lightbox-next" onclick="lightboxNav(1)">›</button>
+  {% if not is_privileged %}
+  <div class="c-lightbox-watermark">CARTEL</div>
+  {% endif %}
 </div>
 
 <style>
@@ -607,6 +614,37 @@
 .c-lightbox-next { right: 20px; }
 .c-lightbox-prev:hover,
 .c-lightbox-next:hover { background: rgba(255,255,255,0.25); }
+
+/* ── 라이트박스 워터마크 ── */
+.c-lightbox-watermark {
+  position: absolute;
+  bottom: 22px;
+  right: 26px;
+  font-family: var(--font-display, sans-serif);
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .22em;
+  color: rgba(255,255,255,0.28);
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  user-select: none;
+}
+
+/* ── 모자이크 워터마크 ── */
+.gl-watermark {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  z-index: 5;
+  font-family: var(--font-display, sans-serif);
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .2em;
+  color: rgba(255,255,255,0.38);
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.65);
+  user-select: none;
+}
 </style>
 
 <script>
@@ -722,7 +760,22 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'ArrowLeft')  lightboxNav(-1);
   if (e.key === 'ArrowRight') lightboxNav(1);
   if (e.key === 'Escape')     closeLightbox();
+  {% if not is_privileged %}
+  // 라이트박스 열려 있을 때 저장 단축키 차단
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault();
+  }
+  {% endif %}
 });
+
+{% if not is_privileged %}
+// 페이지 전체 우클릭 차단 (갤러리 이미지 대상)
+document.addEventListener('contextmenu', function(e) {
+  if (e.target.closest('.gl-mosaic-item') || e.target.id === 'lightboxImg') {
+    e.preventDefault();
+  }
+});
+{% endif %}
 </script>
 
 {% endblock %}
