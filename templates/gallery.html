@@ -76,134 +76,148 @@
       {% endfor %}
     </div>
 
-    {# ── 이벤트별 섹션 ── #}
+    {# ── 연도별 섹션 ── #}
     <div id="galleryContainer">
-      {% for post in posts %}
-      {% set imgs = post.images | fromjson %}
-      {% set img_count = imgs | length %}
-      <section class="gl-event-section" data-type="{{ post.event_type }}">
+      {% for year in sorted_years %}
+      {% set year_posts = posts_by_year[year] %}
+      <div class="gl-year-section">
 
-        {# 섹션 헤더 #}
-        <div class="gl-event-header">
-          <div class="gl-event-header-left">
-            <span class="gl-event-type-badge">{{ post.event_type }}</span>
-            <h2 class="gl-event-title">{{ post.title }}</h2>
-          </div>
-          <div class="gl-event-header-right">
-            {% if post.event_date %}
-              <span class="gl-event-date">{{ post.event_date.strftime('%Y.%m.%d') }}</span>
-            {% endif %}
+        {# 연도 헤더 (접기 버튼) #}
+        <button class="gl-year-toggle" onclick="toggleYear(this)"
+                aria-expanded="{{ 'true' if loop.first else 'false' }}">
+          <span class="gl-year-label">{{ year }}년</span>
+          <span class="gl-year-count">{{ year_posts | length }}개</span>
+          <span class="gl-year-arrow">{{ '▲' if loop.first else '▼' }}</span>
+        </button>
+
+        {# 연도 바디 #}
+        <div class="gl-year-body" {% if not loop.first %}style="display:none"{% endif %}>
+          {% for post in year_posts %}
+          {% set imgs = post.images | fromjson %}
+          {% set img_count = imgs | length %}
+          <section class="gl-event-section" data-type="{{ post.event_type }}">
+
+            {# 섹션 헤더 #}
+            <div class="gl-event-header">
+              <div class="gl-event-header-left">
+                <span class="gl-event-type-badge">{{ post.event_type }}</span>
+                <h2 class="gl-event-title">{{ post.title }}</h2>
+              </div>
+              <div class="gl-event-header-right">
+                {% if post.event_date %}
+                  <span class="gl-event-date">{{ post.event_date.strftime('%Y.%m.%d') }}</span>
+                {% endif %}
+                {% if is_privileged %}
+                  <button type="button" class="gl-edit-btn" onclick="toggleEditForm({{ post.id }})">수정</button>
+                  <form method="post" action="/gallery/{{ post.id }}/delete"
+                        style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
+                    <button type="submit" class="gl-delete-btn">삭제</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+
+            {# ── 인라인 수정 폼 ── #}
             {% if is_privileged %}
-              <button type="button" class="gl-edit-btn" onclick="toggleEditForm({{ post.id }})">수정</button>
-              <form method="post" action="/gallery/{{ post.id }}/delete"
-                    style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
-                <button type="submit" class="gl-delete-btn">삭제</button>
-              </form>
-            {% endif %}
-          </div>
-        </div>
-
-        {# ── 인라인 수정 폼 ── #}
-        {% if is_privileged %}
-        <div id="editForm-{{ post.id }}" class="gl-edit-form" style="display:none">
-          <form method="post" action="/gallery/{{ post.id }}/edit" enctype="multipart/form-data">
-            <div class="gl-edit-grid">
-              <div style="grid-column:1/-1">
-                <label class="form-label">제목 *</label>
-                <input type="text" name="title" class="form-control" value="{{ post.title }}" required>
-              </div>
-              <div>
-                <label class="form-label">행사 유형</label>
-                <select name="event_type" class="form-control">
-                  {% for t in ['MT','개강총회','종강파티','수상','세미나','기타'] %}
-                    <option {% if post.event_type == t %}selected{% endif %}>{{ t }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div>
-                <label class="form-label">행사 날짜</label>
-                <input type="date" name="event_date" class="form-control"
-                       value="{{ post.event_date.isoformat() if post.event_date else '' }}">
-              </div>
-              <div style="grid-column:1/-1">
-                <label class="form-label">설명</label>
-                <textarea name="description" class="form-control" rows="2">{{ post.description }}</textarea>
-              </div>
-
-              {# 기존 사진 관리 #}
-              {% if imgs %}
-              <div style="grid-column:1/-1">
-                <label class="form-label">사진 순서 · 삭제</label>
-                <p class="gl-order-hint" style="margin:-6px 0 10px">
-                  ← → 로 순서 변경 &nbsp;·&nbsp; 🗑 버튼으로 삭제 &nbsp;·&nbsp;
-                  <strong>첫 번째 사진이 크게 표시됩니다</strong>
-                </p>
-                <div class="gl-edit-list" id="sortable-{{ post.id }}">
-                  {% for img in imgs %}
-                  <div class="gl-edit-row" data-fname="{{ img }}">
-                    <div class="gl-edit-row-num">{{ loop.index }}</div>
-                    <img class="gl-edit-row-img" src="/uploads/{{ img }}" alt="">
-                    {% if loop.first %}<span class="gl-thumb-badge-inline">대표</span>{% endif %}
-                    <div class="gl-edit-row-btns">
-                      <button type="button" class="gl-order-btn" onclick="movePhoto(this,-1)" {% if loop.first %}disabled{% endif %}>←</button>
-                      <button type="button" class="gl-order-btn" onclick="movePhoto(this,1)" {% if loop.last %}disabled{% endif %}>→</button>
-                      <button type="button" class="gl-del-btn" onclick="toggleDeletePhoto(this)">🗑</button>
-                    </div>
-                    <input type="checkbox" name="delete_images" value="{{ img }}" class="gl-edit-thumb-chk" style="display:none">
+            <div id="editForm-{{ post.id }}" class="gl-edit-form" style="display:none">
+              <form method="post" action="/gallery/{{ post.id }}/edit" enctype="multipart/form-data">
+                <div class="gl-edit-grid">
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">제목 *</label>
+                    <input type="text" name="title" class="form-control" value="{{ post.title }}" required>
                   </div>
-                  {% endfor %}
+                  <div>
+                    <label class="form-label">행사 유형</label>
+                    <select name="event_type" class="form-control">
+                      {% for t in ['MT','개강총회','종강파티','수상','세미나','기타'] %}
+                        <option {% if post.event_type == t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label">행사 날짜</label>
+                    <input type="date" name="event_date" class="form-control"
+                           value="{{ post.event_date.isoformat() if post.event_date else '' }}">
+                  </div>
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">설명</label>
+                    <textarea name="description" class="form-control" rows="2">{{ post.description }}</textarea>
+                  </div>
+                  {% if imgs %}
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">사진 순서 · 삭제</label>
+                    <p class="gl-order-hint" style="margin:-6px 0 10px">
+                      ← → 로 순서 변경 &nbsp;·&nbsp; 🗑 버튼으로 삭제 &nbsp;·&nbsp;
+                      <strong>첫 번째 사진이 크게 표시됩니다</strong>
+                    </p>
+                    <div class="gl-edit-list" id="sortable-{{ post.id }}">
+                      {% for img in imgs %}
+                      <div class="gl-edit-row" data-fname="{{ img }}">
+                        <div class="gl-edit-row-num">{{ loop.index }}</div>
+                        <img class="gl-edit-row-img" src="/uploads/{{ img }}" alt="">
+                        {% if loop.first %}<span class="gl-thumb-badge-inline">대표</span>{% endif %}
+                        <div class="gl-edit-row-btns">
+                          <button type="button" class="gl-order-btn" onclick="movePhoto(this,-1)" {% if loop.first %}disabled{% endif %}>←</button>
+                          <button type="button" class="gl-order-btn" onclick="movePhoto(this,1)" {% if loop.last %}disabled{% endif %}>→</button>
+                          <button type="button" class="gl-del-btn" onclick="toggleDeletePhoto(this)">🗑</button>
+                        </div>
+                        <input type="checkbox" name="delete_images" value="{{ img }}" class="gl-edit-thumb-chk" style="display:none">
+                      </div>
+                      {% endfor %}
+                    </div>
+                    <input type="hidden" name="image_order" class="gl-image-order"
+                           value="{{ imgs | join(',') }}">
+                  </div>
+                  {% endif %}
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">사진 추가</label>
+                    <input type="file" name="add_images" class="form-control" multiple accept="image/*">
+                  </div>
+                  <div style="grid-column:1/-1">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                      <input type="checkbox" name="is_public" value="true"
+                             {% if post.is_public %}checked{% endif %}
+                             style="width:16px;height:16px;accent-color:var(--primary)">
+                      <span style="font-size:.88rem;font-weight:500">공개</span>
+                    </label>
+                  </div>
                 </div>
-                <input type="hidden" name="image_order" class="gl-image-order"
-                       value="{{ imgs | join(',') }}">
-              </div>
-              {% endif %}
-
-              <div style="grid-column:1/-1">
-                <label class="form-label">사진 추가 (여러 장 선택 가능)</label>
-                <input type="file" name="add_images" class="form-control" multiple accept="image/*">
-              </div>
-              <div style="grid-column:1/-1">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                  <input type="checkbox" name="is_public" value="true"
-                         {% if post.is_public %}checked{% endif %}
-                         style="width:16px;height:16px;accent-color:var(--primary)">
-                  <span style="font-size:.88rem;font-weight:500">공개</span>
-                </label>
-              </div>
+                <div style="display:flex;gap:8px;margin-top:14px">
+                  <button type="submit" class="btn btn-primary btn-sm">저장</button>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="toggleEditForm({{ post.id }})">취소</button>
+                </div>
+              </form>
             </div>
-            <div style="display:flex;gap:8px;margin-top:14px">
-              <button type="submit" class="btn btn-primary btn-sm">저장</button>
-              <button type="button" class="btn btn-outline btn-sm" onclick="toggleEditForm({{ post.id }})">취소</button>
-            </div>
-          </form>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        {# 설명 #}
-        {% if post.description %}
-          <p class="gl-event-desc">{{ post.description }}</p>
-        {% endif %}
+            {# 설명 #}
+            {% if post.description %}
+              <p class="gl-event-desc">{{ post.description }}</p>
+            {% endif %}
 
-        {# 사진 모자이크 #}
-        {% if imgs %}
-        <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
-          {% for img in imgs[:6] %}
-            <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})"
-                 {% if not is_privileged %}oncontextmenu="return false"{% endif %}>
-              <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy"
-                   {% if not is_privileged %}draggable="false"{% endif %}>
-              {% if loop.last and img_count > 6 %}
-                <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
-              {% endif %}
-              {% if not is_privileged %}<div class="gl-watermark">CARTEL</div>{% endif %}
+            {# 사진 모자이크 #}
+            {% if imgs %}
+            <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
+              {% for img in imgs[:6] %}
+                <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})"
+                     {% if not is_privileged %}oncontextmenu="return false"{% endif %}>
+                  <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy"
+                       {% if not is_privileged %}draggable="false"{% endif %}>
+                  {% if loop.last and img_count > 6 %}
+                    <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
+                  {% endif %}
+                  {% if not is_privileged %}<div class="gl-watermark">CARTEL</div>{% endif %}
+                </div>
+              {% endfor %}
             </div>
+            {% else %}
+            <div class="gl-no-photo">📷 사진이 없습니다</div>
+            {% endif %}
+
+          </section>
           {% endfor %}
-        </div>
-        {% else %}
-        <div class="gl-no-photo">📷 사진이 없습니다</div>
-        {% endif %}
-
-      </section>
+        </div>{# /gl-year-body #}
+      </div>{# /gl-year-section #}
       {% endfor %}
     </div>
 
@@ -281,9 +295,66 @@
   background: rgba(59,130,246,0.07);
 }
 
+/* ── 연도 섹션 ── */
+.gl-year-section {
+  margin-bottom: 12px;
+}
+.gl-year-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 20px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+  margin-bottom: 0;
+}
+.gl-year-toggle:hover {
+  border-color: var(--cartel-blue);
+  background: rgba(59,130,246,0.04);
+}
+.gl-year-toggle[aria-expanded="true"] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+.gl-year-label {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+.gl-year-count {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.gl-year-arrow {
+  margin-left: auto;
+  font-size: .75rem;
+  color: var(--muted);
+  transition: transform .2s;
+}
+.gl-year-body {
+  border: 2px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 24px 20px 8px;
+  margin-bottom: 24px;
+}
+
 /* ── 이벤트 섹션 ── */
 .gl-event-section {
-  margin-bottom: 56px;
+  margin-bottom: 48px;
 }
 
 /* 섹션 헤더 */
@@ -313,7 +384,7 @@
 }
 .gl-event-title {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 1.22rem;
   font-weight: 700;
   color: var(--text);
   margin: 0;
@@ -719,12 +790,32 @@ function _refreshPhotoList(list) {
   if (cancel) cancel.addEventListener('click', function () { form.style.display = 'none'; });
 })();
 
-// 이벤트 유형 필터
+// 연도 섹션 접기/펼치기
+function toggleYear(btn) {
+  var body = btn.nextElementSibling;
+  var open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  btn.querySelector('.gl-year-arrow').textContent = open ? '▼' : '▲';
+  body.style.display = open ? 'none' : '';
+}
+
+// 이벤트 유형 필터 (필터 적용 시 매칭 항목 있는 연도 자동 펼침)
 function filterGallery(type, btn) {
-  document.querySelectorAll('.gl-tab').forEach(b => b.classList.remove('is-active'));
+  document.querySelectorAll('.gl-tab').forEach(function(b) { b.classList.remove('is-active'); });
   btn.classList.add('is-active');
-  document.querySelectorAll('.gl-event-section').forEach(function (sec) {
+  document.querySelectorAll('.gl-event-section').forEach(function(sec) {
     sec.style.display = (type === 'all' || sec.dataset.type === type) ? '' : 'none';
+  });
+  // 매칭 항목이 있는 연도는 펼침
+  document.querySelectorAll('.gl-year-section').forEach(function(ys) {
+    var hasVisible = ys.querySelectorAll('.gl-event-section:not([style*="none"])').length > 0;
+    var toggle = ys.querySelector('.gl-year-toggle');
+    var body   = ys.querySelector('.gl-year-body');
+    if (hasVisible && toggle.getAttribute('aria-expanded') === 'false') {
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.querySelector('.gl-year-arrow').textContent = '▲';
+      body.style.display = '';
+    }
   });
 }
 

@@ -1371,14 +1371,23 @@ async def awards_page(request: Request, year: Optional[int] = None, db: Session 
 
 @app.get("/gallery", response_class=HTMLResponse)
 async def gallery_page(request: Request, db: Session = Depends(get_db)):
-    cm = _current_member(request, db)
     is_admin_ = _is_admin(request)
     q = db.query(GalleryPost)
     if not is_admin_:
         q = q.filter(GalleryPost.is_public.is_(True))
     posts = q.order_by(GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
+
+    # 연도별 그룹핑 (event_date 없으면 created_at 연도 사용)
+    posts_by_year: dict = {}
+    for p in posts:
+        y = p.event_date.year if p.event_date else p.created_at.year
+        posts_by_year.setdefault(y, []).append(p)
+    sorted_years = sorted(posts_by_year.keys(), reverse=True)
+
     return _render(request, "gallery.html", _ctx(request, db,
         posts=posts,
+        posts_by_year=posts_by_year,
+        sorted_years=sorted_years,
     ))
 
 
