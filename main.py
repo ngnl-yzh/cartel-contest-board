@@ -2947,6 +2947,14 @@ async def team_join(
     if comp.max_members and approved_count >= comp.max_members:
         raise HTTPException(status_code=400, detail="팀 인원이 가득 찼습니다.")
 
+    # ── 팀장은 팀원 신청 불가 ──
+    if db.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.member_id == target_member.id,
+        TeamMember.is_leader.is_(True),
+    ).first():
+        raise HTTPException(status_code=400, detail="팀장은 별도로 팀원 신청을 할 수 없습니다.")
+
     # ── 중복 신청 확인 (같은 회원) ──
     if db.query(TeamMember).filter(
         TeamMember.team_id == team_id,

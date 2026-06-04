@@ -540,9 +540,10 @@
         </div>
         {% endif %}
 
-        {# 팀 참여 신청 폼 — 반드시 사이트 회원이어야 신청 가능 #}
+        {# 팀 참여 신청 폼 — 팀장은 자신의 팀에 신청 불가 #}
         {% set approved_cnt_join = team.members | rejectattr('is_leader') | selectattr('status', 'equalto', 'approved') | list | length %}
-        {% if (not comp.max_members or approved_cnt_join < comp.max_members) and comp.status != 'closed' %}
+        {% if (not comp.max_members or approved_cnt_join < comp.max_members) and comp.status != 'closed'
+              and team.id not in leader_team_ids %}
         <details class="join-details" style="margin-top:12px">
           <summary class="btn btn-outline btn-sm" style="cursor:pointer;display:inline-block">+ 이 팀에 참여 신청</summary>
           <div style="margin-top:10px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--line)">
