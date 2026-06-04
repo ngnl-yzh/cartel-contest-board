@@ -43,10 +43,19 @@
         </div>
         <div>
           <label class="form-label">행사 유형</label>
-          <select name="event_type" class="form-control">
-            <option>MT</option><option>개강총회</option><option>종강파티</option>
-            <option>수상</option><option>세미나</option><option>기타</option>
+          <select class="form-control" style="margin-bottom:4px"
+                  onchange="onEventType(this, this.parentNode.querySelector('.etype-custom'), this.parentNode.querySelector('.etype-val'))">
+            <option value="MT">MT</option>
+            <option value="개강총회">개강총회</option>
+            <option value="종강파티">종강파티</option>
+            <option value="회식">회식</option>
+            <option value="수상">수상</option>
+            <option value="세미나">세미나</option>
+            <option value="" selected>기타 (직접 입력)</option>
           </select>
+          <input type="text" name="event_type" class="form-control etype-custom"
+                 placeholder="유형 직접 입력" maxlength="20" value="기타">
+          {# 프리셋 선택 시 JS가 etype-hidden을 생성해 값 전송 #}
         </div>
         <div>
           <label class="form-label">행사 날짜</label>
@@ -158,11 +167,22 @@
                   </div>
                   <div>
                     <label class="form-label">행사 유형</label>
-                    <select name="event_type" class="form-control">
-                      {% for t in ['MT','개강총회','종강파티','수상','세미나','기타'] %}
-                        <option {% if post.event_type == t %}selected{% endif %}>{{ t }}</option>
+                    {% set preset_types = ['MT','개강총회','종강파티','회식','수상','세미나'] %}
+                    <select class="form-control" style="margin-bottom:4px"
+                            onchange="onEventType(this, this.parentNode.querySelector('.etype-custom'), null)">
+                      {% for t in preset_types %}
+                        <option value="{{ t }}" {% if post.event_type == t %}selected{% endif %}>{{ t }}</option>
                       {% endfor %}
+                      <option value="" {% if post.event_type not in preset_types %}selected{% endif %}>기타 (직접 입력)</option>
                     </select>
+                    <input type="text" class="form-control etype-custom"
+                           placeholder="유형 직접 입력" maxlength="20"
+                           value="{{ post.event_type if post.event_type not in preset_types else '' }}"
+                           {% if post.event_type not in preset_types %}name="event_type"{% endif %}
+                           {% if post.event_type in preset_types %}style="display:none"{% endif %}>
+                    {% if post.event_type in preset_types %}
+                    <input type="hidden" class="etype-hidden" name="event_type" value="{{ post.event_type }}">
+                    {% endif %}
                   </div>
                   <div>
                     <label class="form-label">행사 날짜</label>
@@ -773,6 +793,31 @@
 if (typeof ImageResize !== 'undefined') Quill.register('modules/imageResize', ImageResize);
 </script>
 <script>
+// 행사 유형 선택 — 프리셋 선택 시 텍스트 입력 숨김, 기타 선택 시 표시
+function onEventType(sel, customInput) {
+  if (!customInput) return;
+  if (sel.value) {
+    // 프리셋 선택: text input 숨기고 name 제거 (중복 전송 방지)
+    customInput.style.display = 'none';
+    customInput.removeAttribute('name');
+    // 선택값을 name="event_type"으로 전송할 hidden input 생성 또는 업데이트
+    var hid = sel.parentNode.querySelector('.etype-hidden');
+    if (!hid) {
+      hid = document.createElement('input');
+      hid.type = 'hidden'; hid.className = 'etype-hidden'; hid.name = 'event_type';
+      sel.parentNode.appendChild(hid);
+    }
+    hid.value = sel.value;
+  } else {
+    // 기타: 기존 hidden input 제거, text input 표시+name 복원
+    var hid = sel.parentNode.querySelector('.etype-hidden');
+    if (hid) hid.remove();
+    customInput.style.display = '';
+    customInput.name = 'event_type';
+    customInput.focus();
+  }
+}
+
 // GPT 힌트 입력창 토글
 function toggleGptHint(chk, rowId) {
   var row = document.getElementById(rowId);

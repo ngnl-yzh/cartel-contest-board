@@ -59,10 +59,18 @@
         </div>
         <div>
           <label class="form-label" style="color:#c4b5fd">유형</label>
-          <select name="event_type" class="form-control">
-            <option>MT</option><option>개강총회</option><option>종강파티</option>
-            <option>수상</option><option>세미나</option><option selected>기타</option>
+          <select class="form-control" style="margin-bottom:4px"
+                  onchange="onEventType(this, this.parentNode.querySelector('.etype-custom'), null)">
+            <option value="MT">MT</option>
+            <option value="개강총회">개강총회</option>
+            <option value="종강파티">종강파티</option>
+            <option value="회식">회식</option>
+            <option value="수상">수상</option>
+            <option value="세미나">세미나</option>
+            <option value="" selected>기타 (직접 입력)</option>
           </select>
+          <input type="text" name="event_type" class="form-control etype-custom"
+                 placeholder="유형 직접 입력" maxlength="20" value="기타">
         </div>
         <div>
           <label class="form-label" style="color:#c4b5fd">날짜</label>
@@ -206,6 +214,22 @@
 // 이미지 리사이즈 모듈 등록
 if (typeof ImageResize !== 'undefined') {
   Quill.register('modules/imageResize', ImageResize);
+}
+
+// 행사 유형 선택
+function onEventType(sel, customInput) {
+  if (!customInput) return;
+  if (sel.value) {
+    customInput.style.display = 'none';
+    customInput.removeAttribute('name');
+    var hid = sel.parentNode.querySelector('.etype-hidden');
+    if (!hid) { hid = document.createElement('input'); hid.type='hidden'; hid.className='etype-hidden'; hid.name='event_type'; sel.parentNode.appendChild(hid); }
+    hid.value = sel.value;
+  } else {
+    var hid = sel.parentNode.querySelector('.etype-hidden');
+    if (hid) hid.remove();
+    customInput.style.display = ''; customInput.name = 'event_type'; customInput.focus();
+  }
 }
 
 // ── 이벤트 섹션 접기/펼치기 ──────────────────────────────────────
