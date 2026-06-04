@@ -52,6 +52,10 @@ class Team(Base):
     submitted_at   = Column(DateTime, nullable=True)
     submitted_docs   = Column(Text, default="[]")   # JSON: 실제 제출한 서류 체크 목록
     submission_files = Column(Text, default="[]")   # JSON: 업로드된 제출 파일 목록
+    # 팀 해체 투표
+    dissolution_requested    = Column(Boolean, default=False)
+    dissolution_requested_at = Column(DateTime, nullable=True)
+    dissolution_votes        = Column(Text, default="[]")  # JSON: 동의한 member_id 목록
     created_at       = Column(DateTime, default=datetime.now)
 
 

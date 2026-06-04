@@ -3198,6 +3198,114 @@ async def set_leader(request: Request, comp_id: int, team_id: int, member_id: in
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
 
 
+@app.post("/competition/{comp_id}/team/{team_id}/request-dissolution")
+async def request_dissolution(request: Request, comp_id: int, team_id: int, db: Session = Depends(get_db)):
+    """팀장이 해체 요청 시작 — 자신의 동의를 포함해 과반수 달성 시 즉시 해체"""
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=401)
+    team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
+    if not team:
+        raise HTTPException(status_code=404)
+    is_leader = bool(db.query(TeamMember).filter(
+        TeamMember.team_id == team_id, TeamMember.is_leader.is_(True),
+        or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name),
+    ).first())
+    if not is_leader:
+        raise HTTPException(status_code=403, detail="팀장만 해체 요청을 시작할 수 있습니다.")
+
+    total = db.query(func.count(TeamMember.id)).filter(
+        TeamMember.team_id == team_id, TeamMember.status == "approved"
+    ).scalar() or 1
+
+    votes = [cm.id] if cm.id else []
+    team.dissolution_requested = True
+    team.dissolution_requested_at = _now()
+    team.dissolution_votes = json.dumps(votes, ensure_ascii=False)
+
+    # 과반수 달성(팀장 혼자인 경우) 즉시 해체
+    if len(votes) * 2 > total:
+        db.delete(team)
+        db.commit()
+        return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+    # 팀원들에게 알림
+    for tm in db.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.is_leader.is_(False),
+        TeamMember.status == "approved",
+    ).all():
+        if tm.member_id:
+            _create_notification(
+                db, tm.member_id, "team_recruit", cm.id, team_id,
+                f"'{team.name}' 팀 해체 요청이 시작됐습니다. 동의하시면 투표해 주세요.",
+            )
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/team/{team_id}/vote-dissolution")
+async def vote_dissolution(request: Request, comp_id: int, team_id: int, db: Session = Depends(get_db)):
+    """팀원이 해체에 동의 투표 — 과반수 달성 시 자동 해체"""
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=401)
+    team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
+    if not team or not team.dissolution_requested:
+        raise HTTPException(status_code=400, detail="진행 중인 해체 요청이 없습니다.")
+
+    tm = db.query(TeamMember).filter(
+        TeamMember.team_id == team_id, TeamMember.status == "approved",
+        or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name),
+    ).first()
+    if not tm:
+        raise HTTPException(status_code=403, detail="이 팀의 멤버가 아닙니다.")
+
+    votes = _from_json(team.dissolution_votes or "[]")
+    if cm.id in votes:
+        raise HTTPException(status_code=400, detail="이미 동의하셨습니다.")
+
+    votes.append(cm.id)
+    team.dissolution_votes = json.dumps(votes, ensure_ascii=False)
+
+    total = db.query(func.count(TeamMember.id)).filter(
+        TeamMember.team_id == team_id, TeamMember.status == "approved"
+    ).scalar() or 1
+
+    # 과반수 달성 시 해체
+    if len(votes) * 2 > total:
+        db.delete(team)
+        db.commit()
+        return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/team/{team_id}/cancel-dissolution")
+async def cancel_dissolution(request: Request, comp_id: int, team_id: int, db: Session = Depends(get_db)):
+    """팀장 또는 관리자가 해체 요청 취소"""
+    cm = _current_member(request, db)
+    is_priv = _is_privileged(request, db)
+    if not is_priv:
+        if not cm:
+            raise HTTPException(status_code=401)
+        is_leader = bool(db.query(TeamMember).filter(
+            TeamMember.team_id == team_id, TeamMember.is_leader.is_(True),
+            or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name),
+        ).first())
+        if not is_leader:
+            raise HTTPException(status_code=403)
+    team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
+    if not team:
+        raise HTTPException(status_code=404)
+    team.dissolution_requested = False
+    team.dissolution_requested_at = None
+    team.dissolution_votes = "[]"
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
 @app.post("/competition/{comp_id}/team/{team_id}/transfer-leader")
 async def transfer_leader(
     request: Request, comp_id: int, team_id: int,

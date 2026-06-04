@@ -69,9 +69,12 @@ def init_db():
             _add_col(conn, inspector, "chat_room_members", "muted_until", "muted_until TIMESTAMP")
 
         if "teams" in tables:
-            _add_col(conn, inspector, "teams", "requirements",      "requirements TEXT DEFAULT ''")
-            _add_col(conn, inspector, "teams", "submitted_docs",    "submitted_docs TEXT DEFAULT '[]'")
-            _add_col(conn, inspector, "teams", "submission_files",  "submission_files TEXT DEFAULT '[]'")
+            _add_col(conn, inspector, "teams", "requirements",             "requirements TEXT DEFAULT ''")
+            _add_col(conn, inspector, "teams", "submitted_docs",           "submitted_docs TEXT DEFAULT '[]'")
+            _add_col(conn, inspector, "teams", "submission_files",         "submission_files TEXT DEFAULT '[]'")
+            _add_col(conn, inspector, "teams", "dissolution_requested",    "dissolution_requested BOOLEAN DEFAULT FALSE")
+            _add_col(conn, inspector, "teams", "dissolution_requested_at", "dissolution_requested_at TIMESTAMP")
+            _add_col(conn, inspector, "teams", "dissolution_votes",        "dissolution_votes TEXT DEFAULT '[]'")
 
         if "team_members" in tables:
             _add_col(conn, inspector, "team_members", "is_participant", "is_participant BOOLEAN DEFAULT FALSE")

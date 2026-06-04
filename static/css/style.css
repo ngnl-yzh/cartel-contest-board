@@ -1186,6 +1186,50 @@ select {
   background: #fff;
 }
 
+/* ── 팀 해체 투표 UI ── */
+.dissolution-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: rgba(239,68,68,0.06);
+  border: 1.5px solid rgba(239,68,68,0.3);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+.dissolution-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dissolution-badge {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+.dissolution-count {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.dissolution-needed {
+  font-size: .76rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 4px;
+}
+.dissolution-req-btn {
+  color: var(--danger, #ef4444);
+  border-color: rgba(239,68,68,0.3);
+  font-size: .78rem;
+}
+.dissolution-req-btn:hover {
+  background: rgba(239,68,68,0.06);
+}
+
 /* ── 관리자 팀 관리 UI ── */
 .admin-team-form {
   background: rgba(245,158,11,0.05);

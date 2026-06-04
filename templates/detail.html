@@ -587,6 +587,51 @@
         </details>
         {% endif %}
 
+        {# ── 팀 해체 투표 ── #}
+        {% set approved_all = team.members | selectattr('status', 'equalto', 'approved') | list %}
+        {% set total_cnt = approved_all | length %}
+        {% set diss_votes = team.dissolution_votes | fromjson if team.dissolution_votes else [] %}
+        {% set voted_cnt = diss_votes | length %}
+        {% set needed = (total_cnt // 2) + 1 %}
+        {% set current_voted = current_member and current_member.id in diss_votes %}
+
+        {% if team.dissolution_requested %}
+        {# 해체 진행 중 배너 #}
+        <div class="dissolution-banner">
+          <div class="dissolution-banner-info">
+            <span class="dissolution-badge">⚠️ 해체 투표 진행 중</span>
+            <span class="dissolution-count">{{ voted_cnt }} / {{ total_cnt }}명 동의
+              <span class="dissolution-needed">({{ needed }}명 이상이면 해체)</span>
+            </span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {% if current_member and not current_voted and (team.id in leader_team_ids or
+                  (team.members | selectattr('member_id','equalto',current_member.id) | selectattr('status','equalto','approved') | list | length > 0)) %}
+            <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/vote-dissolution"
+                  onsubmit="return confirm('팀 해체에 동의하시겠습니까? 과반수 동의 시 즉시 해체됩니다.')">
+              <button type="submit" class="btn btn-danger btn-sm">해체 동의</button>
+            </form>
+            {% elif current_voted %}
+            <span style="font-size:.8rem;color:var(--muted);align-self:center">✓ 동의함</span>
+            {% endif %}
+            {% if team.id in leader_team_ids or is_privileged %}
+            <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/cancel-dissolution">
+              <button type="submit" class="btn btn-outline btn-sm">요청 취소</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+
+        {% elif team.id in leader_team_ids %}
+        {# 팀장: 해체 요청 버튼 #}
+        <div style="margin-top:10px;text-align:right">
+          <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/request-dissolution"
+                onsubmit="return confirm('팀 해체를 요청하시겠습니까?\n팀원 과반수의 동의가 필요합니다.\n(팀원이 없으면 즉시 해체됩니다.)')">
+            <button type="submit" class="btn btn-ghost btn-sm dissolution-req-btn">🗑 팀 해체 요청</button>
+          </form>
+        </div>
+        {% endif %}
+
         {# ── 팀장 양도 — 팀장 본인 또는 관리자 ── #}
         {% set non_leader_approved = team.members | rejectattr('is_leader') | selectattr('status', 'equalto', 'approved') | list %}
         {% if non_leader_approved and (is_privileged or team.id in leader_team_ids) %}
