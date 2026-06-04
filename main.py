@@ -957,6 +957,11 @@ async def detail(request: Request, comp_id: int, db: Session = Depends(get_db)):
         for e in entries:
             team_entries[e.team_id] = e
 
+    # 관리자용 — 팀원 직접 추가 / 팀 생성에 사용할 전체 멤버 목록
+    all_members_for_admin = []
+    if _is_privileged(request, db):
+        all_members_for_admin = db.query(Member).order_by(Member.activity_name).all()
+
     return _render(request,
         "detail.html",
         _ctx(request, db,
@@ -971,7 +976,8 @@ async def detail(request: Request, comp_id: int, db: Session = Depends(get_db)):
              team_entries=team_entries,
              comp_stages=COMP_STAGES,
              is_participating=is_participating,
-             my_entry_team_id=my_entry_team_id),
+             my_entry_team_id=my_entry_team_id,
+             all_members_for_admin=all_members_for_admin),
     )
 
 
@@ -2986,6 +2992,88 @@ async def team_join(
             db, leader_tm.member_id, "team_recruit", target_member.id, team_id,
             f"'{team.name}' 팀에 '{target_member.activity_name}'({target_member.real_name})님이 참여 신청했습니다.",
         )
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/team/{team_id}/admin-add-member")
+async def admin_add_team_member(
+    request: Request, comp_id: int, team_id: int,
+    member_id: int = Form(...),
+    role: str = Form("기타"),
+    db: Session = Depends(get_db),
+):
+    """관리자 전용 — 카르텔 멤버를 팀에 직접 추가 (즉시 승인)"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
+    if not team:
+        raise HTTPException(status_code=404)
+    m = db.query(Member).filter(Member.id == member_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="회원을 찾을 수 없습니다.")
+    existing = db.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.member_id == member_id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"'{m.activity_name}'은 이미 이 팀에 있습니다.")
+    db.add(TeamMember(
+        team_id=team_id,
+        competition_id=comp_id,
+        nickname=m.activity_name,
+        real_name=m.real_name,
+        student_id=m.student_id or "",
+        is_leader=False,
+        status="approved",
+        member_id=m.id,
+        role=role if role in ROLES else "기타",
+    ))
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/team/admin-create")
+async def admin_create_team(
+    request: Request, comp_id: int,
+    team_name: str = Form(...),
+    team_desc: str = Form(""),
+    leader_member_id: int = Form(...),
+    role: str = Form("기타"),
+    db: Session = Depends(get_db),
+):
+    """관리자 전용 — 팀장 멤버를 지정해 팀 생성"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    comp = db.query(Competition).filter(Competition.id == comp_id).first()
+    if not comp:
+        raise HTTPException(status_code=404)
+    team_name = team_name.strip()
+    if not team_name:
+        raise HTTPException(status_code=400, detail="팀 이름을 입력하세요.")
+    if db.query(Team).filter(Team.competition_id == comp_id, Team.name == team_name).first():
+        raise HTTPException(status_code=400, detail="같은 이름의 팀이 이미 있습니다.")
+    leader_m = db.query(Member).filter(Member.id == leader_member_id).first()
+    if not leader_m:
+        raise HTTPException(status_code=404, detail="선택한 회원을 찾을 수 없습니다.")
+    team = Team(
+        competition_id=comp_id,
+        name=team_name,
+        description=team_desc.strip(),
+    )
+    db.add(team)
+    db.flush()
+    db.add(TeamMember(
+        team_id=team.id,
+        competition_id=comp_id,
+        nickname=leader_m.activity_name,
+        real_name=leader_m.real_name,
+        student_id=leader_m.student_id or "",
+        is_leader=True,
+        status="approved",
+        member_id=leader_m.id,
+        role=role if role in ROLES else "기타",
+    ))
     db.commit()
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
 

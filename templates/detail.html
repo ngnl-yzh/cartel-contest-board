@@ -540,6 +540,40 @@
         </div>
         {% endif %}
 
+        {# ── 관리자 전용: 팀원 직접 추가 ── #}
+        {% if is_privileged %}
+        <details class="admin-add-member-details" style="margin-top:10px">
+          <summary class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:5px;font-size:.8rem">
+            ⚙️ 팀원 직접 추가
+          </summary>
+          <div class="admin-team-form">
+            <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/admin-add-member">
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <div style="flex:1;min-width:160px">
+                  <label class="form-label" style="font-size:.78rem">멤버 선택</label>
+                  <select name="member_id" class="form-control form-control-sm admin-member-select" required>
+                    <option value="">-- 멤버 선택 --</option>
+                    {% for m in all_members_for_admin %}
+                      {% set already_in = team.members | selectattr('member_id', 'equalto', m.id) | list | length > 0 %}
+                      <option value="{{ m.id }}" {% if already_in %}disabled{% endif %}>
+                        {{ m.activity_name }} ({{ m.real_name }}){% if already_in %} ✓{% endif %}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div style="min-width:100px">
+                  <label class="form-label" style="font-size:.78rem">역할</label>
+                  <select name="role" class="form-control form-control-sm">
+                    {% for r in roles %}<option>{{ r }}</option>{% endfor %}
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">추가</button>
+              </div>
+            </form>
+          </div>
+        </details>
+        {% endif %}
+
         {# 팀 참여 신청 폼 — 팀장은 자신의 팀에 신청 불가 #}
         {% set approved_cnt_join = team.members | rejectattr('is_leader') | selectattr('status', 'equalto', 'approved') | list | length %}
         {% if (not comp.max_members or approved_cnt_join < comp.max_members) and comp.status != 'closed'
@@ -659,6 +693,45 @@
             </label>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top:8px">팀 만들기</button>
+        </form>
+      </div>
+    </details>
+    {% endif %}
+
+    {# ── 관리자 전용: 팀장 지정해서 팀 만들기 ── #}
+    {% if is_privileged %}
+    <details class="new-team-details" style="margin-top:12px">
+      <summary class="btn btn-ghost" style="display:inline-flex;align-items:center;gap:6px">
+        ⚙️ 관리자 팀 생성 <span style="font-size:.8rem;opacity:.7">(팀장 직접 지정)</span>
+      </summary>
+      <div class="new-team-form-wrap admin-team-form">
+        <form method="post" action="/competition/{{ comp.id }}/team/admin-create" class="join-form">
+          <div class="join-grid">
+            <label class="field">
+              <span>팀 이름 <small>(필수)</small></span>
+              <input type="text" name="team_name" placeholder="예) 카르텔 1팀" required maxlength="50">
+            </label>
+            <label class="field">
+              <span>팀 소개 <small>(선택)</small></span>
+              <input type="text" name="team_desc" placeholder="팀 한줄 소개" maxlength="100">
+            </label>
+            <label class="field">
+              <span>팀장으로 지정할 멤버 <small>(필수)</small></span>
+              <select name="leader_member_id" class="admin-member-select" required>
+                <option value="">-- 멤버 선택 --</option>
+                {% for m in all_members_for_admin %}
+                  <option value="{{ m.id }}">{{ m.activity_name }} ({{ m.real_name }})</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="field">
+              <span>팀장 역할</span>
+              <select name="role">
+                {% for r in roles %}<option>{{ r }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:12px">팀 생성</button>
         </form>
       </div>
     </details>

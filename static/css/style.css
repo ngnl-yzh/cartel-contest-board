@@ -1186,6 +1186,25 @@ select {
   background: #fff;
 }
 
+/* ── 관리자 팀 관리 UI ── */
+.admin-team-form {
+  background: rgba(245,158,11,0.05);
+  border: 1.5px dashed rgba(245,158,11,0.4);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+.admin-add-member-details summary {
+  color: var(--muted);
+}
+.admin-add-member-details summary:hover {
+  color: var(--text);
+}
+.admin-member-select {
+  width: 100%;
+  font-size: .88rem;
+}
+
 /* 인원 배지 */
 .member-badge {
   font-size: .78rem;
