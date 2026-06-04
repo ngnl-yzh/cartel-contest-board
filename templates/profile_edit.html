@@ -17,9 +17,9 @@
       <form method="post" action="/profile/edit/me" enctype="multipart/form-data" id="basicForm">
         <label class="field">
           <span>활동명 (ID)</span>
-          <input type="text" name="activity_name" value="{{ member.activity_name }}" required maxlength="30"
+          <input type="text" name="activity_name" value="{{ member.activity_name }}" required maxlength="16"
                  pattern="[A-Za-z0-9가-힣_\-.]+" title="영문·한글·숫자·_-. 만 사용 가능">
-          <small class="field-hint">다른 사람이 사용 중인 이름은 사용할 수 없습니다</small>
+          <small class="field-hint">최대 16자 · 다른 사람이 사용 중인 이름은 사용할 수 없습니다</small>
         </label>
         <div class="form-grid two-col">
           <label class="field">

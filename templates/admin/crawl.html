@@ -13,7 +13,8 @@
       </div>
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <a href="/admin/settings" class="btn btn-outline">분야 설정</a>
-        <a href="/admin/competitions" class="btn btn-outline">← 공모전 관리</a>
+        <button onclick="history.back()" class="btn btn-ghost">← 뒤로</button>
+        <a href="/admin/competitions" class="btn btn-outline">공모전 관리</a>
 
         {# 소스 선택 + 크롤링 시작 폼 #}
         <form method="post" action="/admin/crawl/run" id="crawlForm" onsubmit="return onCrawlSubmit(event)">

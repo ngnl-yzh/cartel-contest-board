@@ -23,8 +23,9 @@
       <div class="form-grid two-col">
         <label class="field">
           <span>활동명 <span class="required">*</span></span>
-          <input type="text" name="activity_name" placeholder="보드에서 표시될 이름" required maxlength="30">
-          <small class="field-hint">공개되는 이름입니다</small>
+          <input type="text" name="activity_name" placeholder="보드에서 표시될 이름" required maxlength="16"
+                 pattern="[A-Za-z0-9가-힣_\-.]+" title="영문·한글·숫자·_-. 만 사용 가능">
+          <small class="field-hint">공개되는 이름 · 최대 16자</small>
         </label>
         <label class="field">
           <span>실명 <span class="required">*</span></span>

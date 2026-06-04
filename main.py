@@ -196,6 +196,7 @@ ROLES = ["기획", "개발", "디자인", "마케팅"]
 ADMIN_PERMISSIONS = [
     ("competitions", "공모전 관리"),
     ("crawl",        "크롤링 / URL 등록"),
+    ("teams",        "팀 직접 편집"),
     ("members",      "회원 관리"),
     ("gallery",      "갤러리 관리"),
     ("invites",      "초대코드 관리"),
@@ -2218,6 +2219,27 @@ async def admin_set_role(request: Request, member_id: int, role: str = Form(...)
     return RedirectResponse(url="/admin/members", status_code=303)
 
 
+@app.post("/admin/members/{member_id}/edit-activity-name")
+async def admin_edit_activity_name(
+    request: Request, member_id: int,
+    activity_name: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """관리자 전용 — 회원 활동명(ID) 변경"""
+    if r := _privileged_redirect(request, db):
+        return r
+    new_name = activity_name.strip()
+    if not new_name or len(new_name) > 16:
+        return RedirectResponse(url="/admin/members", status_code=303)
+    m = db.query(Member).filter(Member.id == member_id).first()
+    if m:
+        duplicate = db.query(Member).filter(Member.activity_name == new_name, Member.id != member_id).first()
+        if not duplicate:
+            m.activity_name = new_name
+            db.commit()
+    return RedirectResponse(url="/admin/members", status_code=303)
+
+
 @app.post("/admin/members/{member_id}/set-permissions")
 async def admin_set_permissions(
     request: Request, member_id: int,
@@ -2601,11 +2623,13 @@ async def profile_edit(
     if not verify_password(current_password, cm.password_hash):
         return _render(request, "profile_edit.html", _ctx(request, db, member=cm, error="현재 비밀번호가 올바르지 않습니다."), status_code=400)
 
-    # 활동명 변경 처리
+    # 활동명 변경 처리 (최대 16자)
     new_name = activity_name.strip()
     if new_name != cm.activity_name:
         if not new_name:
             return _render(request, "profile_edit.html", _ctx(request, db, member=cm, error="활동명을 입력해주세요."), status_code=400)
+        if len(new_name) > 16:
+            return _render(request, "profile_edit.html", _ctx(request, db, member=cm, error="활동명은 최대 16자까지 가능합니다."), status_code=400)
         duplicate = db.query(Member).filter(Member.activity_name == new_name, Member.id != cm.id).first()
         if duplicate:
             return _render(request, "profile_edit.html", _ctx(request, db, member=cm, error=f"'{new_name}'은(는) 이미 사용 중인 활동명입니다."), status_code=400)

@@ -13,7 +13,8 @@
         {% if is_admin %}
         <a href="/admin/invite-codes" class="btn btn-outline">초대 코드 관리</a>
         {% endif %}
-        <a href="/admin" class="btn btn-outline">← 홈</a>
+        <button onclick="history.back()" class="btn btn-ghost">← 뒤로</button>
+        <a href="/admin" class="btn btn-outline">🏠 홈</a>
       </div>
     </div>
 
@@ -84,17 +85,17 @@
       </div>
 
       <section class="table-wrap">
-        <table class="admin-table">
+        <table class="admin-table member-admin-table">
           <thead>
             <tr>
-              <th style="width:36px"></th>
-              <th>활동명</th>
-              <th>실명</th>
-              <th>기수</th>
-              <th>학번</th>
-              <th>역할</th>
-              <th>가입일</th>
-              <th></th>
+              <th style="width:32px"></th>
+              <th style="width:140px">활동명</th>
+              <th style="width:130px">실명</th>
+              <th style="width:56px">기수</th>
+              <th style="width:80px">학번</th>
+              <th style="width:90px">역할</th>
+              <th style="width:82px">가입일</th>
+              <th>관리</th>
             </tr>
           </thead>
           <tbody>
@@ -107,32 +108,38 @@
                        style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer">
               </td>
               <td>
-                <a href="/profile/{{ m.activity_name }}" class="table-title">{{ m.activity_name }}</a>
-              </td>
-              <td>
-                <form method="post" action="/admin/members/{{ m.id }}/edit-name"
-                      style="display:flex;align-items:center;gap:4px;min-width:120px">
-                  <input type="text" name="real_name" value="{{ m.real_name }}"
-                         style="font-size:.82rem;padding:3px 6px;border:1px solid var(--line);border-radius:6px;width:90px;background:var(--bg)">
-                  <button type="submit" class="btn btn-ghost btn-xs" title="저장">✓</button>
+                <form method="post" action="/admin/members/{{ m.id }}/edit-activity-name"
+                      style="display:flex;align-items:center;gap:3px">
+                  <input type="text" name="activity_name" value="{{ m.activity_name }}"
+                         maxlength="16"
+                         style="font-size:.82rem;padding:3px 5px;border:1px solid var(--line);border-radius:6px;width:100px;background:var(--bg)">
+                  <button type="submit" class="btn btn-ghost btn-xs" title="활동명 저장">✓</button>
                 </form>
               </td>
               <td>
+                <form method="post" action="/admin/members/{{ m.id }}/edit-name"
+                      style="display:flex;align-items:center;gap:3px">
+                  <input type="text" name="real_name" value="{{ m.real_name }}"
+                         style="font-size:.82rem;padding:3px 5px;border:1px solid var(--line);border-radius:6px;width:80px;background:var(--bg)">
+                  <button type="submit" class="btn btn-ghost btn-xs" title="실명 저장">✓</button>
+                </form>
+              </td>
+              <td style="text-align:center">
                 {% if m.generation %}
                   <span class="deadline-badge open" style="font-size:.75rem">{{ m.generation }}기</span>
                 {% else %}
-                  <span class="muted" style="font-size:.8rem">미지정</span>
+                  <span class="muted" style="font-size:.8rem">-</span>
                 {% endif %}
               </td>
-              <td>{{ m.student_id or "-" }}</td>
+              <td style="font-size:.82rem">{{ m.student_id or "-" }}</td>
               <td>
                 {% if m.role == 'sub_admin' %}
-                  <span class="deadline-badge soon">중간관리자</span>
+                  <span class="deadline-badge soon" style="font-size:.72rem">중간관리자</span>
                 {% else %}
-                  <span class="deadline-badge open">일반회원</span>
+                  <span class="deadline-badge open" style="font-size:.72rem">일반회원</span>
                 {% endif %}
               </td>
-              <td>{{ m.created_at.strftime('%Y.%m.%d') }}</td>
+              <td style="font-size:.8rem">{{ m.created_at.strftime('%y.%m.%d') }}</td>
               <td class="table-actions">
                 {% if is_admin %}
                 <form method="post" action="/admin/members/{{ m.id }}/set-role" style="display:inline">
