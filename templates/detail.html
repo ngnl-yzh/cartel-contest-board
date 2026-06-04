@@ -540,11 +540,11 @@
         </div>
         {% endif %}
 
-        {# ── 관리자 전용: 팀원 직접 추가 ── #}
+        {# ── 관리자 전용: 팀원 임의 추가 ── #}
         {% if is_privileged %}
         <details class="admin-add-member-details" style="margin-top:10px">
           <summary class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:5px;font-size:.8rem">
-            ⚙️ 팀원 직접 추가
+            ⚙️ 관리자 임의 팀원 추가
           </summary>
           <div class="admin-team-form">
             <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/admin-add-member">
@@ -702,7 +702,7 @@
     {% if is_privileged %}
     <details class="new-team-details" style="margin-top:12px">
       <summary class="btn btn-ghost" style="display:inline-flex;align-items:center;gap:6px">
-        ⚙️ 관리자 팀 생성 <span style="font-size:.8rem;opacity:.7">(팀장 직접 지정)</span>
+        ⚙️ 관리자 임의 팀 생성
       </summary>
       <div class="new-team-form-wrap admin-team-form">
         <form method="post" action="/competition/{{ comp.id }}/team/admin-create" class="join-form">
