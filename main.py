@@ -1466,6 +1466,24 @@ async def gallery_page(request: Request, db: Session = Depends(get_db)):
     ))
 
 
+@app.post("/gallery/upload-image")
+async def gallery_upload_image(
+    request: Request,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """갤러리 에디터 인라인 이미지 업로드"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    data = await image.read()
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="8MB 이하 이미지만 가능합니다")
+    data, ctype = _optimize_image(data, max_px=1200, quality=82)
+    fname = f"desc_{uuid.uuid4().hex}.jpg"
+    _storage_upload(data, fname, ctype)
+    return {"url": f"/uploads/{fname}"}
+
+
 @app.post("/gallery/new")
 async def gallery_new(
     request: Request,

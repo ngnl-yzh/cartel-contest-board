@@ -2,6 +2,19 @@
 {% block title %}Gallery · CARTEL{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css">
+<style>
+/* Quill 에디터 컨테이너 */
+.gallery-quill-wrap .ql-toolbar { border-radius:8px 8px 0 0; border-color:var(--line); background:var(--surface); }
+.gallery-quill-wrap .ql-container { border-radius:0 0 8px 8px; border-color:var(--line); min-height:120px; font-size:.9rem; }
+.gallery-quill-wrap .ql-editor { min-height:100px; }
+/* 카드 내 렌더링 */
+.gl-desc-html { margin:0 0 12px; }
+.gl-desc-html .ql-editor { padding:0; border:none; font-size:.87rem; color:var(--text); }
+.gl-desc-html .ql-editor p { margin:.25em 0; }
+.gl-desc-html .ql-editor img { max-width:100%; border-radius:6px; margin:.4em 0; }
+.gl-desc-html .ql-editor h1 { font-size:1.3em; } .gl-desc-html .ql-editor h2 { font-size:1.1em; } .gl-desc-html .ql-editor h3 { font-size:1em; }
+</style>
 
 {# ── 히어로 ── #}
 <div class="c-hero" style="padding:36px 0 28px">
@@ -44,9 +57,11 @@
           <input type="file" name="images" class="form-control" multiple accept="image/*">
         </div>
         <div style="grid-column:1/-1">
-          <label class="form-label">설명 (선택)</label>
-          <textarea name="description" class="form-control" rows="2"
-                    placeholder="행사 소개를 간단히 적어주세요 (GPT 꾸미기 켜면 자동 생성)"></textarea>
+          <label class="form-label">설명 · 꾸미기 <small style="font-weight:400;color:var(--muted)">(선택 — 글자 색상·크기·이미지 삽입 가능)</small></label>
+          <div class="gallery-quill-wrap" id="newGalleryQuillWrap">
+            <div id="newGalleryQuill"></div>
+          </div>
+          <input type="hidden" name="description" id="newGalleryDesc">
         </div>
         {# GPT 꾸미기 #}
         <div style="grid-column:1/-1">
@@ -155,8 +170,12 @@
                            value="{{ post.event_date.isoformat() if post.event_date else '' }}">
                   </div>
                   <div style="grid-column:1/-1">
-                    <label class="form-label">설명</label>
-                    <textarea name="description" class="form-control" rows="2">{{ post.description }}</textarea>
+                    <label class="form-label">설명 · 꾸미기</label>
+                    <div class="gallery-quill-wrap" id="editQuillWrap-{{ post.id }}">
+                      <div id="editQuill-{{ post.id }}"></div>
+                    </div>
+                    <input type="hidden" name="description" id="editDesc-{{ post.id }}"
+                           data-initial="{{ post.description | e }}">
                   </div>
                   {% if imgs %}
                   <div style="grid-column:1/-1">
@@ -205,9 +224,11 @@
             </div>
             {% endif %}
 
-            {# 설명 #}
+            {# 설명 / 꾸미기 HTML #}
             {% if post.description %}
-              <p class="gl-event-desc">{{ post.description }}</p>
+            <div class="gl-desc-html">
+              <div class="ql-editor">{{ post.description | safe }}</div>
+            </div>
             {% endif %}
 
             {# 사진 모자이크 #}
@@ -749,11 +770,65 @@
 }
 </style>
 
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 // GPT 힌트 입력창 토글
 function toggleGptHint(chk, rowId) {
   var row = document.getElementById(rowId);
   if (row) row.style.display = chk.checked ? '' : 'none';
+}
+
+// ── Quill 에디터 공통 설정 ──────────────────────────────────────
+var _quillInstances = {};
+var _QUILL_TOOLBAR = [
+  [{ header: [1, 2, 3, false] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ color: [] }, { background: [] }],
+  [{ size: ['small', false, 'large', 'huge'] }],
+  [{ align: [] }],
+  [{ list: 'ordered' }, { list: 'bullet' }],
+  ['link', 'image', 'blockquote'],
+  ['clean']
+];
+
+function _galleryImageHandler(quillInst) {
+  var input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.click();
+  input.onchange = async function () {
+    if (!input.files[0]) return;
+    var fd = new FormData();
+    fd.append('image', input.files[0]);
+    try {
+      var res = await fetch('/gallery/upload-image', { method: 'POST', body: fd });
+      if (!res.ok) { alert('이미지 업로드 실패'); return; }
+      var data = await res.json();
+      var range = quillInst.getSelection() || { index: quillInst.getLength() };
+      quillInst.insertEmbed(range.index, 'image', data.url);
+    } catch(e) { alert('이미지 업로드 실패'); }
+  };
+}
+
+function initQuill(containerId, hiddenId) {
+  if (_quillInstances[containerId]) return _quillInstances[containerId];
+  var container = document.getElementById(containerId);
+  var hidden    = document.getElementById(hiddenId);
+  if (!container || !hidden) return null;
+  var q = new Quill(container, {
+    theme: 'snow',
+    placeholder: '자유롭게 꾸며보세요 ✨',
+    modules: {
+      toolbar: { container: _QUILL_TOOLBAR,
+                 handlers: { image: function() { _galleryImageHandler(q); } } }
+    }
+  });
+  // 기존 내용 로드
+  if (hidden.dataset.initial && hidden.dataset.initial.trim()) {
+    q.clipboard.dangerouslyPasteHTML(hidden.dataset.initial);
+  }
+  q.on('text-change', function () { hidden.value = q.root.innerHTML; });
+  _quillInstances[containerId] = q;
+  return q;
 }
 
 // 갤러리 수정 폼 토글
@@ -762,8 +837,28 @@ function toggleEditForm(postId) {
   if (!form) return;
   var isHidden = form.style.display === 'none' || form.style.display === '';
   form.style.display = isHidden ? 'block' : 'none';
-  if (isHidden) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (isHidden) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(function() { initQuill('editQuill-' + postId, 'editDesc-' + postId); }, 50);
+  }
 }
+
+// 새 갤러리 폼 Quill 초기화 (폼 열릴 때)
+(function() {
+  var btn = document.getElementById('newGalleryBtn');
+  if (!btn) return;
+  var _newQ = null;
+  btn.addEventListener('click', function() {
+    setTimeout(function() {
+      if (!_newQ) _newQ = initQuill('newGalleryQuill', 'newGalleryDesc');
+    }, 50);
+  });
+  // 폼 제출 전 동기화
+  var form = document.querySelector('form[action="/gallery/new"]');
+  if (form) form.addEventListener('submit', function() {
+    if (_newQ) document.getElementById('newGalleryDesc').value = _newQ.root.innerHTML;
+  });
+})();
 
 // 사진 순서 이동 (← →)
 function movePhoto(btn, dir) {
