@@ -118,6 +118,7 @@
               <a href="/my" class="c-dropdown-item">🏠 마이페이지</a>
               {% if current_member.role == 'sub_admin' %}
               <a href="/admin" class="c-dropdown-item">⚙️ 관리</a>
+              <a href="/admin/login" class="c-dropdown-item" style="opacity:.65;font-size:.85rem">🔑 관리자 로그인</a>
               {% endif %}
               <div class="c-dropdown-divider"></div>
               <a href="/member/logout" class="c-dropdown-item c-dropdown-item-danger">로그아웃</a>
@@ -187,6 +188,7 @@
           <a href="/my/follows"    class="c-mobile-link">👥 팔로우</a>
           {% if current_member.role == 'sub_admin' %}
             <a href="/admin" class="c-mobile-link">⚙️ 관리</a>
+            <a href="/admin/login" class="c-mobile-link" style="opacity:.65;font-size:.85rem">🔑 관리자 로그인</a>
           {% endif %}
           <a href="/member/logout" class="c-mobile-link">로그아웃</a>
         {% else %}
