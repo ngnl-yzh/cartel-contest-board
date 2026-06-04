@@ -4800,6 +4800,26 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
     return comp.id   # ← 라우트에서 redirect 처리
 
 
+@app.post("/admin/crawl/add-from-url")
+async def admin_crawl_add_from_url(
+    request: Request,
+    url: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """URL 직접 입력으로 GPT 파싱 후 공모전 등록"""
+    if r := _admin_redirect(request):
+        return r
+    if not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="올바른 URL을 입력해주세요. (http:// 또는 https://로 시작)")
+    # link만 있는 최소 item 딕셔너리로 _gpt_process_item 호출
+    item = {"link": url, "title": "", "organizer": "", "deadline": None, "prize": "", "tags": []}
+    comp_id = await _gpt_process_item(item, db)
+    return RedirectResponse(url=f"/admin/edit/{comp_id}", status_code=303)
+
+
 @app.post("/admin/crawl/add-with-gpt")
 async def admin_crawl_add_with_gpt(
     request: Request,

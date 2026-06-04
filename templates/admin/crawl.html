@@ -34,6 +34,28 @@
       </div>
     </div>
 
+    {# ── URL 직접 입력 ── #}
+    <div class="url-import-card">
+      <div class="url-import-header">
+        <span class="url-import-icon">🔗</span>
+        <div>
+          <p class="url-import-title">URL로 바로 등록</p>
+          <p class="url-import-sub">공모전 페이지 URL을 붙여넣으면 GPT가 자동으로 정보를 추출합니다</p>
+        </div>
+      </div>
+      <form method="post" action="/admin/crawl/add-from-url"
+            id="urlImportForm" onsubmit="return onUrlImport(event)">
+        <div class="url-import-row">
+          <input type="url" name="url" id="urlInput" class="form-control url-import-input"
+                 placeholder="https://www.contestkorea.com/sub/view.php?..." required>
+          <button type="submit" class="btn btn-primary url-import-btn" id="urlImportBtn">
+            ✨ GPT 자동 등록
+          </button>
+        </div>
+        <p class="url-import-hint">공모전코리아, 위비티, 링커리어 등 공모전 상세 페이지 URL을 입력하세요</p>
+      </form>
+    </div>
+
     {# ── 크롤 히스토리 (날짜별 접기/펼치기) ── #}
     {% if history %}
       {% for session in history %}
@@ -186,6 +208,58 @@
 </main>
 
 <style>
+/* ── URL 직접 입력 카드 ── */
+.url-import-card {
+  background: linear-gradient(135deg, rgba(59,130,246,0.07) 0%, rgba(139,92,246,0.05) 100%);
+  border: 1.5px solid rgba(59,130,246,0.25);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 28px;
+}
+.url-import-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.url-import-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  margin-top: 2px;
+}
+.url-import-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+  margin: 0 0 3px;
+}
+.url-import-sub {
+  font-size: .82rem;
+  color: var(--muted);
+  margin: 0;
+}
+.url-import-row {
+  display: flex;
+  gap: 8px;
+}
+.url-import-input {
+  flex: 1;
+  font-size: .9rem;
+  font-family: monospace;
+}
+.url-import-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.url-import-hint {
+  font-size: .76rem;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+@media (max-width: 600px) {
+  .url-import-row { flex-direction: column; }
+}
+
 /* ── 소스 선택 바 ── */
 .crawl-source-bar {
   display: flex;
@@ -425,6 +499,20 @@ function bulkAdd(sessIdx, useGpt) {
     if (bar) bar.innerHTML = '<span style="color:var(--cartel-blue);font-weight:700">⏳ GPT 처리 중… 페이지를 닫지 마세요.</span>';
   }
   form.submit();
+}
+
+// ── URL 직접 등록 ────────────────────────────────────────────────
+function onUrlImport(e) {
+  const input = document.getElementById('urlInput');
+  const btn   = document.getElementById('urlImportBtn');
+  const url   = input.value.trim();
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    alert('올바른 URL을 입력해주세요. (http:// 또는 https://로 시작)');
+    return false;
+  }
+  btn.disabled = true;
+  btn.textContent = '분석 중… (10~30초)';
+  return true;
 }
 
 // ── 소스 선택 최소 1개 보장 ──────────────────────────────────────
