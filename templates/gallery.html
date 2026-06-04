@@ -771,6 +771,10 @@
 </style>
 
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
+<script>
+if (typeof ImageResize !== 'undefined') Quill.register('modules/imageResize', ImageResize);
+</script>
 <script>
 // GPT 힌트 입력창 토글
 function toggleGptHint(chk, rowId) {
@@ -805,6 +809,11 @@ function _galleryImageHandler(quillInst) {
       var data = await res.json();
       var range = quillInst.getSelection() || { index: quillInst.getLength() };
       quillInst.insertEmbed(range.index, 'image', data.url);
+      setTimeout(function(){
+        var imgs = quillInst.root.querySelectorAll('img');
+        var last = imgs[imgs.length-1];
+        if (last && !last.style.width) last.style.width = '300px';
+      }, 80);
     } catch(e) { alert('이미지 업로드 실패'); }
   };
 }
@@ -814,13 +823,15 @@ function initQuill(containerId, hiddenId) {
   var container = document.getElementById(containerId);
   var hidden    = document.getElementById(hiddenId);
   if (!container || !hidden) return null;
+  var mods = {
+    toolbar: { container: _QUILL_TOOLBAR,
+               handlers: { image: function() { _galleryImageHandler(q); } } }
+  };
+  if (typeof ImageResize !== 'undefined') mods.imageResize = { modules: ['Resize','DisplaySize'] };
   var q = new Quill(container, {
     theme: 'snow',
-    placeholder: '자유롭게 꾸며보세요 ✨',
-    modules: {
-      toolbar: { container: _QUILL_TOOLBAR,
-                 handlers: { image: function() { _galleryImageHandler(q); } } }
-    }
+    placeholder: '자유롭게 꾸며보세요 ✨ (이미지는 드래그로 크기 조절)',
+    modules: mods
   });
   // 기존 내용 로드
   if (hidden.dataset.initial && hidden.dataset.initial.trim()) {
