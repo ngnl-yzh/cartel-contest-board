@@ -190,7 +190,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin1234")
 from crawler import CONTESTKOREA_CATS as _CONTESTKOREA_CATS
 _DEFAULT_TAGS = list(_CONTESTKOREA_CATS)
 TAGS = _DEFAULT_TAGS  # fallback (DB 접근 전 사용)
-ROLES = ["기획", "개발", "디자인", "마케팅", "기타"]
+ROLES = ["기획", "개발", "디자인", "마케팅"]
 
 
 def _get_tags(db: Session) -> list[str]:
@@ -3194,6 +3194,45 @@ async def set_leader(request: Request, comp_id: int, team_id: int, member_id: in
     if m:
         m.is_leader = True
         m.status = "approved"
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/team/{team_id}/transfer-leader")
+async def transfer_leader(
+    request: Request, comp_id: int, team_id: int,
+    new_leader_tm_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """팀장 또는 관리자가 팀장 권한을 다른 팀원에게 양도"""
+    cm = _current_member(request, db)
+    is_priv = _is_privileged(request, db)
+
+    # 현재 팀장인지 확인
+    is_team_leader = False
+    if cm:
+        is_team_leader = bool(db.query(TeamMember).filter(
+            TeamMember.team_id == team_id,
+            TeamMember.is_leader.is_(True),
+            or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name),
+        ).first())
+
+    if not is_priv and not is_team_leader:
+        raise HTTPException(status_code=403, detail="팀장 또는 관리자만 팀장을 변경할 수 있습니다.")
+
+    new_ldr = db.query(TeamMember).filter(
+        TeamMember.id == new_leader_tm_id,
+        TeamMember.team_id == team_id,
+        TeamMember.is_leader.is_(False),
+    ).first()
+    if not new_ldr:
+        raise HTTPException(status_code=400, detail="올바른 팀원을 선택해주세요.")
+
+    db.query(TeamMember).filter(
+        TeamMember.team_id == team_id, TeamMember.is_leader.is_(True)
+    ).update({"is_leader": False})
+    new_ldr.is_leader = True
+    new_ldr.status = "approved"
     db.commit()
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
 
