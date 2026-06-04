@@ -152,8 +152,12 @@
                   {% endif %}
                 </form>
                 {% if m.role == 'sub_admin' %}
-                <button type="button" class="btn btn-outline btn-sm"
-                        onclick="togglePermPanel('perm-{{ m.id }}')">⚙️ 권한 설정</button>
+                <button type="button" class="btn btn-outline btn-sm perm-open-btn"
+                        data-id="{{ m.id }}"
+                        data-name="{{ m.activity_name }}"
+                        data-perms="{{ m.permissions | default('[]') | e }}">
+                  ⚙️ 권한
+                </button>
                 {% endif %}
                 {% endif %}
                 <form method="post" action="/admin/members/{{ m.id }}/delete" data-confirm="{{ m.activity_name }} 회원을 삭제하시겠습니까?" style="display:inline">
@@ -170,32 +174,6 @@
                 </form>
               </td>
             </tr>
-            {% if is_admin and m.role == 'sub_admin' %}
-            {% set m_perms = m.permissions | fromjson if m.permissions else [] %}
-            <tr id="perm-{{ m.id }}" style="display:none;background:rgba(59,130,246,0.04)">
-              <td colspan="8" style="padding:14px 18px">
-                <form method="post" action="/admin/members/{{ m.id }}/set-permissions">
-                  <p style="font-size:.82rem;font-weight:700;margin:0 0 10px;color:var(--cartel-blue)">
-                    ⚙️ {{ m.activity_name }} 권한 설정
-                    <span style="font-weight:400;color:var(--muted);font-size:.76rem;margin-left:6px">체크한 항목만 허용됩니다</span>
-                  </p>
-                  <div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:12px">
-                    {% for key, label in admin_permissions %}
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
-                      <input type="checkbox" name="permissions" value="{{ key }}"
-                             {% if key in m_perms %}checked{% endif %}
-                             style="accent-color:var(--cartel-blue);width:15px;height:15px">
-                      {{ label }}
-                    </label>
-                    {% endfor %}
-                  </div>
-                  <button type="submit" class="btn btn-primary btn-sm">저장</button>
-                  <button type="button" class="btn btn-ghost btn-sm"
-                          onclick="togglePermPanel('perm-{{ m.id }}')">닫기</button>
-                </form>
-              </td>
-            </tr>
-            {% endif %}
             {% endfor %}
           </tbody>
         </table>
@@ -310,10 +288,104 @@ function validateGenBulk() {
   return confirm(count + '명의 기수를 ' + gen + '기로 지정하시겠습니까?');
 }
 
-function togglePermPanel(id) {
-  const row = document.getElementById(id);
-  if (!row) return;
-  row.style.display = (row.style.display === 'none' || !row.style.display) ? '' : 'none';
+/* ── 권한 설정 플로팅 패널 ── */
+const PERM_LABELS = {{ admin_permissions | tojson }};  // [[key, label], ...]
+let _permPanel = null;
+let _permCurrentId = null;
+
+function buildPermPanel() {
+  const div = document.createElement('div');
+  div.id = 'permPanel';
+  div.style.cssText = [
+    'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999',
+    'background:var(--surface);border:1.5px solid var(--line);border-radius:14px',
+    'padding:20px 22px;min-width:320px;max-width:480px;width:90%',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.18)'
+  ].join(';');
+  document.body.appendChild(div);
+  return div;
 }
+
+function openPermPanel(btn) {
+  const id   = btn.dataset.id;
+  const name = btn.dataset.name;
+  let   perms;
+  try { perms = JSON.parse(btn.dataset.perms || '[]'); } catch(e) { perms = []; }
+
+  if (!_permPanel) _permPanel = buildPermPanel();
+  _permCurrentId = id;
+
+  // 배경 오버레이
+  let overlay = document.getElementById('permOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'permOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9998';
+    overlay.addEventListener('click', closePermPanel);
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = '';
+
+  _permPanel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <p style="font-size:.92rem;font-weight:700;margin:0">⚙️ ${name} 권한 설정</p>
+      <button onclick="closePermPanel()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:var(--muted)">✕</button>
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin:0 0 14px">체크한 항목만 허용됩니다. 중간관리자 임명 권한은 항상 제외됩니다.</p>
+    <div id="permChkList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:16px">
+      ${PERM_LABELS.map(([key, label]) => `
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.87rem;padding:6px 8px;border-radius:7px;border:1.5px solid var(--line);background:var(--bg)">
+          <input type="checkbox" value="${key}" ${perms.includes(key)?'checked':''}
+                 style="accent-color:var(--cartel-blue);width:15px;height:15px;flex-shrink:0">
+          ${label}
+        </label>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closePermPanel()" class="btn btn-ghost btn-sm">취소</button>
+      <button onclick="savePermissions('${id}')" class="btn btn-primary btn-sm" id="permSaveBtn">저장</button>
+    </div>
+    <p id="permMsg" style="font-size:.78rem;color:var(--success,#22c55e);margin:8px 0 0;text-align:right;display:none">✓ 저장됐습니다</p>
+  `;
+  _permPanel.style.display = '';
+}
+
+function closePermPanel() {
+  if (_permPanel)  _permPanel.style.display  = 'none';
+  const ov = document.getElementById('permOverlay');
+  if (ov) ov.style.display = 'none';
+  _permCurrentId = null;
+}
+
+async function savePermissions(memberId) {
+  const chks = _permPanel.querySelectorAll('#permChkList input[type=checkbox]:checked');
+  const perms = Array.from(chks).map(c => c.value);
+  const btn = document.getElementById('permSaveBtn');
+  btn.disabled = true; btn.textContent = '저장 중…';
+
+  const fd = new FormData();
+  perms.forEach(p => fd.append('permissions', p));
+
+  const res = await fetch(`/admin/members/${memberId}/set-permissions`, {
+    method: 'POST', body: fd,
+    headers: { 'Accept': 'application/json' }
+  });
+  btn.disabled = false; btn.textContent = '저장';
+
+  if (res.ok || res.redirected) {
+    const msg = document.getElementById('permMsg');
+    msg.style.display = '';
+    // 버튼의 data-perms 업데이트
+    const openBtn = document.querySelector(`.perm-open-btn[data-id="${memberId}"]`);
+    if (openBtn) openBtn.dataset.perms = JSON.stringify(perms);
+    setTimeout(closePermPanel, 800);
+  } else {
+    alert('저장에 실패했습니다.');
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.perm-open-btn');
+  if (btn) openPermPanel(btn);
+});
 </script>
 {% endblock %}

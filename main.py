@@ -201,7 +201,7 @@ ADMIN_PERMISSIONS = [
     ("gallery",      "갤러리 관리"),
     ("invites",      "초대코드 관리"),
     ("jobs",         "채용 관리"),
-    ("settings",     "설정 관리"),
+    ("settings",     "분야·태그 설정"),  # /admin/settings (공모전 분야 편집)
 ]
 
 
@@ -2323,8 +2323,13 @@ async def admin_set_permissions(
     permissions: List[str] = Form(default=[]),
     db: Session = Depends(get_db),
 ):
-    """메인 관리자 전용 — 중간관리자 권한 설정"""
+    """메인 관리자 전용 — 중간관리자 권한 설정 (AJAX/폼 양쪽 지원)"""
     if r := _admin_redirect(request):
+        # AJAX 요청이면 JSON 오류 반환
+        accept = request.headers.get("accept", "")
+        if "application/json" in accept or request.headers.get("x-requested-with") == "XMLHttpRequest":
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=403)
         return r
     m = db.query(Member).filter(Member.id == member_id).first()
     if m and m.role == "sub_admin":
@@ -2332,6 +2337,11 @@ async def admin_set_permissions(
         filtered = [p for p in permissions if p in valid_keys]
         m.permissions = json.dumps(filtered, ensure_ascii=False)
         db.commit()
+    # AJAX 요청 감지 → JSON 응답
+    accept = request.headers.get("accept", "")
+    if "application/json" in accept or request.headers.get("x-requested-with") == "XMLHttpRequest":
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"ok": True})
     return RedirectResponse(url="/admin/members", status_code=303)
 
 
@@ -3529,7 +3539,7 @@ async def request_dissolution(request: Request, comp_id: int, team_id: int, db: 
         TeamMember.team_id == team_id, TeamMember.status == "approved"
     ).scalar() or 1
 
-    votes = [cm.id] if cm.id else []
+    votes = [int(cm.id)] if cm.id else []
     team.dissolution_requested = True
     team.dissolution_requested_at = _now()
     team.dissolution_votes = json.dumps(votes, ensure_ascii=False)
@@ -3572,7 +3582,7 @@ async def vote_dissolution(request: Request, comp_id: int, team_id: int, db: Ses
     if not tm:
         raise HTTPException(status_code=403, detail="이 팀의 멤버가 아닙니다.")
 
-    votes = _from_json(team.dissolution_votes or "[]")
+    votes = [int(v) for v in _from_json(team.dissolution_votes or "[]") if v]
     if cm.id in votes:
         raise HTTPException(status_code=400, detail="이미 동의하셨습니다.")
 
@@ -3624,6 +3634,11 @@ async def transfer_leader(
     db: Session = Depends(get_db),
 ):
     """팀장 또는 관리자가 팀장 권한을 다른 팀원에게 양도"""
+    # 팀이 해당 공모전 소속인지 먼저 검증
+    team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
+    if not team:
+        raise HTTPException(status_code=404)
+
     cm = _current_member(request, db)
     is_priv = _is_privileged(request, db)
 
@@ -3639,10 +3654,12 @@ async def transfer_leader(
     if not is_priv and not is_team_leader:
         raise HTTPException(status_code=403, detail="팀장 또는 관리자만 팀장을 변경할 수 있습니다.")
 
+    # 새 팀장이 같은 팀의 승인된 팀원인지 검증
     new_ldr = db.query(TeamMember).filter(
         TeamMember.id == new_leader_tm_id,
         TeamMember.team_id == team_id,
         TeamMember.is_leader.is_(False),
+        TeamMember.status == "approved",
     ).first()
     if not new_ldr:
         raise HTTPException(status_code=400, detail="올바른 팀원을 선택해주세요.")
