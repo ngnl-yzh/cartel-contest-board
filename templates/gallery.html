@@ -234,14 +234,11 @@
             {# 사진 모자이크 #}
             {% if imgs %}
             <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
-              {% for img in imgs[:6] %}
+              {% for img in imgs %}
                 <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})"
                      {% if not is_privileged %}oncontextmenu="return false"{% endif %}>
                   <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy"
                        {% if not is_privileged %}draggable="false"{% endif %}>
-                  {% if loop.last and img_count > 6 %}
-                    <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
-                  {% endif %}
                   {% if not is_privileged %}<div class="gl-watermark">CARTEL</div>{% endif %}
                 </div>
               {% endfor %}

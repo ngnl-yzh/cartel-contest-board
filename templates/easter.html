@@ -163,12 +163,9 @@
               {% if imgs %}
               <div class="easter-mosaic">
                 <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
-                  {% for img in imgs[:6] %}
+                  {% for img in imgs %}
                     <div class="gl-mosaic-item" onclick="eOpenLightbox({{ imgs | tojson }}, {{ loop.index0 }})">
                       <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy">
-                      {% if loop.last and img_count > 6 %}
-                        <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
-                      {% endif %}
                     </div>
                   {% endfor %}
                 </div>

@@ -737,9 +737,10 @@ async def home(request: Request, db: Session = Depends(get_db)):
     award_comps_map = {c.id: c for c in db.query(Competition).filter(Competition.id.in_(award_comp_ids)).all()} if award_comp_ids else {}
     award_teams_map = {t.id: t for t in db.query(Team).filter(Team.id.in_(award_team_ids)).all()} if award_team_ids else {}
 
-    # 갤러리 최신 3개
+    # 갤러리 최신 3개 (이스터에그 제외)
     recent_gallery = db.query(GalleryPost).filter(
-        GalleryPost.is_public.is_(True)
+        GalleryPost.is_public.is_(True),
+        GalleryPost.is_easter.is_(False),
     ).order_by(GalleryPost.created_at.desc()).limit(3).all()
 
     return _render(request, "home.html", _ctx(request, db,
@@ -1447,7 +1448,7 @@ async def awards_page(request: Request, year: Optional[int] = None, db: Session 
 @app.get("/gallery", response_class=HTMLResponse)
 async def gallery_page(request: Request, db: Session = Depends(get_db)):
     is_admin_ = _is_admin(request)
-    q = db.query(GalleryPost)
+    q = db.query(GalleryPost).filter(GalleryPost.is_easter.is_(False))
     if not is_admin_:
         q = q.filter(GalleryPost.is_public.is_(True))
     posts = q.order_by(GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
