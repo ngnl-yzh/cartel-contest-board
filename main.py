@@ -3027,7 +3027,7 @@ async def admin_add_team_member(
         is_leader=False,
         status="approved",
         member_id=m.id,
-        role=role if role in ROLES else "기타",
+        role=(role.strip() or "기타")[:30],
     ))
     db.commit()
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
@@ -3072,7 +3072,7 @@ async def admin_create_team(
         is_leader=True,
         status="approved",
         member_id=leader_m.id,
-        role=role if role in ROLES else "기타",
+        role=(role.strip() or "기타")[:30],
     ))
     db.commit()
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)

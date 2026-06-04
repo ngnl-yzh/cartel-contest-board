@@ -540,17 +540,20 @@
         </div>
         {% endif %}
 
-        {# ── 관리자 전용: 팀원 임의 추가 ── #}
+        {# ── 관리자 전용: 팀원 임의 추가 + 팀장 교체 ── #}
         {% if is_privileged %}
         <details class="admin-add-member-details" style="margin-top:10px">
           <summary class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:5px;font-size:.8rem">
-            ⚙️ 관리자 임의 팀원 추가
+            ⚙️ 관리자 팀 편집
           </summary>
           <div class="admin-team-form">
+
+            {# 팀원 임의 추가 #}
+            <p class="form-label" style="margin:0 0 8px;font-size:.8rem;font-weight:700">팀원 추가</p>
             <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/admin-add-member">
               <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <div style="flex:1;min-width:160px">
-                  <label class="form-label" style="font-size:.78rem">멤버 선택</label>
+                <div style="flex:2;min-width:160px">
+                  <label class="form-label" style="font-size:.76rem">멤버</label>
                   <select name="member_id" class="form-control form-control-sm admin-member-select" required>
                     <option value="">-- 멤버 선택 --</option>
                     {% for m in all_members_for_admin %}
@@ -561,15 +564,39 @@
                     {% endfor %}
                   </select>
                 </div>
-                <div style="min-width:100px">
-                  <label class="form-label" style="font-size:.78rem">역할</label>
-                  <select name="role" class="form-control form-control-sm">
-                    {% for r in roles %}<option>{{ r }}</option>{% endfor %}
-                  </select>
+                <div style="flex:1;min-width:90px">
+                  <label class="form-label" style="font-size:.76rem">역할 (직접 입력)</label>
+                  <input type="text" name="role" class="form-control form-control-sm"
+                         placeholder="예) 기획, 개발" maxlength="30">
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">추가</button>
               </div>
             </form>
+
+            {# 팀장 교체 #}
+            {% set non_leader_members = team.members | rejectattr('is_leader') | selectattr('status', 'equalto', 'approved') | list %}
+            {% if non_leader_members %}
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(245,158,11,0.25)">
+              <p class="form-label" style="margin:0 0 8px;font-size:.8rem;font-weight:700">팀장 교체</p>
+              <form method="post" action="/admin/competition/{{ comp.id }}/team/{{ team.id }}/set-leader/0"
+                    id="changeLeaderForm-{{ team.id }}"
+                    onsubmit="return submitChangeLeader(event, {{ team.id }})">
+                <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                  <div style="flex:1;min-width:160px">
+                    <label class="form-label" style="font-size:.76rem">새 팀장 선택</label>
+                    <select id="newLeaderSelect-{{ team.id }}" class="form-control form-control-sm" required>
+                      <option value="">-- 팀원 선택 --</option>
+                      {% for m in non_leader_members %}
+                      <option value="{{ m.id }}">{{ m.nickname }} ({{ m.real_name }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <button type="submit" class="btn btn-warning btn-sm">👑 팀장 교체</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+
           </div>
         </details>
         {% endif %}
@@ -725,10 +752,8 @@
               </select>
             </label>
             <label class="field">
-              <span>팀장 역할</span>
-              <select name="role">
-                {% for r in roles %}<option>{{ r }}</option>{% endfor %}
-              </select>
+              <span>팀장 역할 <small>(직접 입력)</small></span>
+              <input type="text" name="role" placeholder="예) 팀장, 기획, 개발" maxlength="30">
             </label>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top:12px">팀 생성</button>
@@ -824,5 +849,16 @@ document.querySelectorAll('.leave-trigger').forEach(btn => {
 
 leaveCancel && leaveCancel.addEventListener('click', () => { leaveModal.style.display = 'none'; });
 leaveModal  && leaveModal.addEventListener('click', e => { if (e.target === leaveModal) leaveModal.style.display = 'none'; });
+
+// 팀장 교체 — select 값을 form action URL에 동적으로 반영
+function submitChangeLeader(e, teamId) {
+  const sel = document.getElementById('newLeaderSelect-' + teamId);
+  const val = sel ? sel.value : '';
+  if (!val) { alert('새 팀장으로 지정할 팀원을 선택하세요.'); return false; }
+  if (!confirm('팀장을 교체하시겠습니까?')) return false;
+  const form = e.target;
+  form.action = form.action.replace(/\/set-leader\/\d+$/, '/set-leader/' + val);
+  return true;
+}
 </script>
 {% endblock %}
