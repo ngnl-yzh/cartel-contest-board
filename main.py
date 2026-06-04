@@ -3198,6 +3198,22 @@ async def set_leader(request: Request, comp_id: int, team_id: int, member_id: in
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
 
 
+@app.post("/competition/{comp_id}/team/{team_id}/force-dissolve")
+async def force_dissolve_team(
+    request: Request, comp_id: int, team_id: int,
+    db: Session = Depends(get_db),
+):
+    """관리자 전용 — 동의 없이 즉시 팀 해체"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    team = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
+    if not team:
+        raise HTTPException(status_code=404)
+    db.delete(team)
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
 @app.post("/competition/{comp_id}/team/{team_id}/request-dissolution")
 async def request_dissolution(request: Request, comp_id: int, team_id: int, db: Session = Depends(get_db)):
     """팀장이 해체 요청 시작 — 자신의 동의를 포함해 과반수 달성 시 즉시 해체"""
