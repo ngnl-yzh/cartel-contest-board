@@ -1485,6 +1485,87 @@ async def gallery_new(
     return RedirectResponse(url="/gallery", status_code=303)
 
 
+# ── 이스터에그 갤러리 (/gallery/c) ─────────────────────────────────────────────
+
+@app.get("/gallery/c", response_class=HTMLResponse)
+async def easter_gallery_page(request: Request, db: Session = Depends(get_db)):
+    posts = db.query(GalleryPost).filter(
+        GalleryPost.is_easter.is_(True)
+    ).order_by(GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
+
+    posts_by_year: dict = {}
+    for p in posts:
+        y = p.event_date.year if p.event_date else p.created_at.year
+        posts_by_year.setdefault(y, []).append(p)
+    sorted_years = sorted(posts_by_year.keys(), reverse=True)
+
+    return _render(request, "easter.html", _ctx(request, db,
+        posts=posts,
+        posts_by_year=posts_by_year,
+        sorted_years=sorted_years,
+    ))
+
+
+@app.post("/gallery/c/new")
+async def easter_gallery_new(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(""),
+    event_type: str = Form("기타"),
+    event_date: Optional[str] = Form(None),
+    images: List[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403)
+
+    saved_images = []
+    for img in images:
+        if img and img.filename:
+            ext = Path(img.filename).suffix.lower()
+            if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+                continue
+            data = await img.read()
+            if len(data) > 20 * 1024 * 1024:
+                continue
+            data, ctype = _optimize_image(data)
+            fname = f"{uuid.uuid4().hex}.jpg"
+            _storage_upload(data, fname, ctype)
+            saved_images.append(fname)
+
+    parsed_date = None
+    if event_date:
+        try:
+            parsed_date = date.fromisoformat(event_date)
+        except ValueError:
+            pass
+
+    post = GalleryPost(
+        title=title.strip(),
+        description=description.strip(),
+        event_type=event_type,
+        event_date=parsed_date,
+        images=json.dumps(saved_images, ensure_ascii=False),
+        created_by_id=0,
+        is_public=True,
+        is_easter=True,
+    )
+    db.add(post)
+    db.commit()
+    return RedirectResponse(url="/gallery/c", status_code=303)
+
+
+@app.post("/gallery/c/{post_id}/delete")
+async def easter_gallery_delete(request: Request, post_id: int, db: Session = Depends(get_db)):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403)
+    post = db.query(GalleryPost).filter(GalleryPost.id == post_id, GalleryPost.is_easter.is_(True)).first()
+    if post:
+        db.delete(post)
+        db.commit()
+    return RedirectResponse(url="/gallery/c", status_code=303)
+
+
 @app.post("/gallery/{post_id}/delete")
 async def gallery_delete(request: Request, post_id: int, db: Session = Depends(get_db)):
     if not _is_privileged(request, db):

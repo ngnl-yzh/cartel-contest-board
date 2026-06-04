@@ -7,7 +7,7 @@
 <div class="c-hero" style="padding:36px 0 28px">
   <div class="c-hero-inner" style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
     <div>
-      <p class="c-hero-eyebrow">CARTEL</p>
+      <p class="c-hero-eyebrow"><a href="/gallery/c" class="easter-trigger">C</a>ARTEL</p>
       <h1 class="c-hero-title">📷 Gallery</h1>
       <p class="c-hero-sub">MT, 개강총회, 종강파티 등 카르텔의 순간들을 담았습니다.</p>
     </div>
@@ -244,6 +244,22 @@
 </div>
 
 <style>
+/* 이스터에그 트리거 — 일반 텍스트와 완전히 동일하게 표시 */
+.easter-trigger {
+  color: inherit;
+  text-decoration: none;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.easter-trigger:hover,
+.easter-trigger:focus,
+.easter-trigger:active {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
 /* ── 추가 버튼 ── */
 .gl-add-btn {
   background: rgba(255,255,255,0.12);

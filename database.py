@@ -106,8 +106,10 @@ def init_db():
                     pass  # 이미 nullable이거나 지원하지 않는 DB
 
         # team_competition_entries — 신규 테이블이므로 create_all로 생성됨
-        # gallery_posts — 신규 테이블이므로 create_all로 생성됨
         # job_postings — 신규 테이블이므로 create_all로 생성됨 (추가 컬럼 없음)
+
+        if "gallery_posts" in tables:
+            _add_col(conn, inspector, "gallery_posts", "is_easter", "is_easter BOOLEAN DEFAULT FALSE")
 
         if "chat_rooms" in tables and "chat_room_members" in tables:
             rooms = conn.execute(_t(

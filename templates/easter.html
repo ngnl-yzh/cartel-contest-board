@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}??? · CARTEL{% endblock %}
+
+{% block content %}
+
+{# ── 히어로 ── #}
+<div class="c-hero" style="padding:36px 0 28px;background:linear-gradient(135deg,#0d0d0d 0%,#1a0a2e 50%,#0d0d0d 100%)">
+  <div class="c-hero-inner" style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+    <div>
+      <p class="c-hero-eyebrow" style="opacity:.5;letter-spacing:.3em">C A R T E L</p>
+      <h1 class="c-hero-title" style="font-size:2rem">🌝 이스터에그 갤러리</h1>
+      <p class="c-hero-sub" style="opacity:.6">여기까지 찾아온 당신, 눈치가 빠르군요.</p>
+    </div>
+    {% if is_admin %}
+    <button class="gl-add-btn" id="newEasterBtn">+ 추가</button>
+    {% endif %}
+  </div>
+</div>
+
+{# ── 추가 폼 (메인 관리자만) ── #}
+{% if is_admin %}
+<div id="newEasterForm" class="gl-form-wrap" style="display:none;background:#1a0a2e">
+  <div class="container" style="max-width:680px">
+    <h2 style="font-size:1rem;font-weight:700;margin-bottom:18px;color:#e2d9f3">새 이스터에그 등록</h2>
+    <form method="post" action="/gallery/c/new" enctype="multipart/form-data">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div style="grid-column:1/-1">
+          <label class="form-label" style="color:#c4b5fd">제목 *</label>
+          <input type="text" name="title" class="form-control" placeholder="제목" required>
+        </div>
+        <div>
+          <label class="form-label" style="color:#c4b5fd">유형</label>
+          <select name="event_type" class="form-control">
+            <option>MT</option><option>개강총회</option><option>종강파티</option>
+            <option>수상</option><option>세미나</option><option selected>기타</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" style="color:#c4b5fd">날짜</label>
+          <input type="date" name="event_date" class="form-control">
+        </div>
+        <div style="grid-column:1/-1">
+          <label class="form-label" style="color:#c4b5fd">설명 (선택)</label>
+          <textarea name="description" class="form-control" rows="2"></textarea>
+        </div>
+        <div style="grid-column:1/-1">
+          <label class="form-label" style="color:#c4b5fd">사진</label>
+          <input type="file" name="images" class="form-control" multiple accept="image/*">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary">등록</button>
+        <button type="button" class="btn btn-outline" id="cancelEasterBtn"
+                style="border-color:rgba(196,181,253,.4);color:#c4b5fd">취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<main style="padding-bottom:80px;background:var(--bg)">
+  <div class="container">
+
+    {% if posts %}
+    {% set types = posts | map(attribute='event_type') | list | unique | list %}
+    <div class="gl-filter-tabs" style="margin-top:28px">
+      <button class="gl-tab is-active" data-type="all" onclick="filterGallery('all',this)">전체</button>
+      {% for t in types %}
+        <button class="gl-tab" data-type="{{ t }}" onclick="filterGallery('{{ t }}',this)">{{ t }}</button>
+      {% endfor %}
+    </div>
+
+    <div id="galleryContainer">
+      {% for year in sorted_years %}
+      {% set year_posts = posts_by_year[year] %}
+      <div class="gl-year-section">
+        <button class="gl-year-toggle" onclick="toggleYear(this)"
+                aria-expanded="{{ 'true' if loop.first else 'false' }}">
+          <span class="gl-year-label">{{ year }}년</span>
+          <span class="gl-year-count">{{ year_posts | length }}개</span>
+          <span class="gl-year-arrow">{{ '▲' if loop.first else '▼' }}</span>
+        </button>
+        <div class="gl-year-body" {% if not loop.first %}style="display:none"{% endif %}>
+          {% for post in year_posts %}
+          {% set imgs = post.images | fromjson %}
+          {% set img_count = imgs | length %}
+          <section class="gl-event-section" data-type="{{ post.event_type }}">
+            <div class="gl-event-header">
+              <div class="gl-event-header-left">
+                <span class="gl-event-type-badge" style="background:#7c3aed">{{ post.event_type }}</span>
+                <h2 class="gl-event-title">{{ post.title }}</h2>
+              </div>
+              <div class="gl-event-header-right">
+                {% if post.event_date %}
+                  <span class="gl-event-date">{{ post.event_date.strftime('%Y.%m.%d') }}</span>
+                {% endif %}
+                {% if is_admin %}
+                  <form method="post" action="/gallery/c/{{ post.id }}/delete"
+                        style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
+                    <button type="submit" class="gl-delete-btn">삭제</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if post.description %}
+              <p class="gl-event-desc">{{ post.description }}</p>
+            {% endif %}
+
+            {% if imgs %}
+            <div class="gl-mosaic gl-mosaic-{{ [img_count, 6] | min }}">
+              {% for img in imgs[:6] %}
+                <div class="gl-mosaic-item" onclick="openLightbox({{ imgs | tojson }}, {{ loop.index0 }})">
+                  <img src="/uploads/{{ img }}" alt="{{ post.title }}" loading="lazy">
+                  {% if loop.last and img_count > 6 %}
+                    <div class="gl-mosaic-more">+{{ img_count - 6 }}</div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="gl-no-photo">📷 사진이 없습니다</div>
+            {% endif %}
+          </section>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="empty-state" style="padding:80px 0;text-align:center">
+      <p style="font-size:3rem;margin-bottom:12px">🌝</p>
+      <p class="empty-text">아직 아무것도 없습니다.</p>
+    </div>
+    {% endif %}
+
+  </div>
+</main>
+
+{# 라이트박스 #}
+<div class="c-lightbox" id="lightbox" onclick="closeLightboxIfBg(event)">
+  <button class="c-lightbox-close" onclick="closeLightbox()">✕</button>
+  <button class="c-lightbox-prev" onclick="lightboxNav(-1)">‹</button>
+  <img id="lightboxImg" src="" alt="">
+  <button class="c-lightbox-next" onclick="lightboxNav(1)">›</button>
+</div>
+
+{% block scripts %}
+<script>
+(function () {
+  const btn    = document.getElementById('newEasterBtn');
+  const form   = document.getElementById('newEasterForm');
+  const cancel = document.getElementById('cancelEasterBtn');
+  if (btn) btn.addEventListener('click', function () {
+    const show = form.style.display === 'none' || form.style.display === '';
+    form.style.display = show ? 'block' : 'none';
+    if (show) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  if (cancel) cancel.addEventListener('click', function () { form.style.display = 'none'; });
+})();
+
+function toggleYear(btn) {
+  var body = btn.nextElementSibling;
+  var open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  btn.querySelector('.gl-year-arrow').textContent = open ? '▼' : '▲';
+  body.style.display = open ? 'none' : '';
+}
+
+function filterGallery(type, btn) {
+  document.querySelectorAll('.gl-tab').forEach(function(b) { b.classList.remove('is-active'); });
+  btn.classList.add('is-active');
+  document.querySelectorAll('.gl-event-section').forEach(function(sec) {
+    sec.style.display = (type === 'all' || sec.dataset.type === type) ? '' : 'none';
+  });
+  document.querySelectorAll('.gl-year-section').forEach(function(ys) {
+    var hasVisible = ys.querySelectorAll('.gl-event-section:not([style*="none"])').length > 0;
+    var toggle = ys.querySelector('.gl-year-toggle');
+    var body   = ys.querySelector('.gl-year-body');
+    if (hasVisible && toggle.getAttribute('aria-expanded') === 'false') {
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.querySelector('.gl-year-arrow').textContent = '▲';
+      body.style.display = '';
+    }
+  });
+}
+
+var _lbImages = [], _lbIdx = 0;
+function openLightbox(images, idx) {
+  _lbImages = images; _lbIdx = idx;
+  showLbImage();
+  document.getElementById('lightbox').classList.add('is-open');
+  document.body.style.overflow = 'hidden';
+}
+function showLbImage() {
+  document.getElementById('lightboxImg').src = '/uploads/' + _lbImages[_lbIdx];
+  var prev = document.querySelector('.c-lightbox-prev');
+  var next = document.querySelector('.c-lightbox-next');
+  if (prev) prev.style.display = _lbImages.length > 1 ? '' : 'none';
+  if (next) next.style.display = _lbImages.length > 1 ? '' : 'none';
+}
+function lightboxNav(dir) {
+  _lbIdx = (_lbIdx + dir + _lbImages.length) % _lbImages.length;
+  showLbImage();
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('is-open');
+  document.body.style.overflow = '';
+}
+function closeLightboxIfBg(e) {
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+}
+document.addEventListener('keydown', function (e) {
+  if (!document.getElementById('lightbox').classList.contains('is-open')) return;
+  if (e.key === 'ArrowLeft')  lightboxNav(-1);
+  if (e.key === 'ArrowRight') lightboxNav(1);
+  if (e.key === 'Escape')     closeLightbox();
+});
+</script>
+{% endblock %}
+
+{% endblock %}
