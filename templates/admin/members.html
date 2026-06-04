@@ -144,6 +144,10 @@
                     <button type="submit" class="btn btn-ghost btn-sm">권한 해제</button>
                   {% endif %}
                 </form>
+                {% if m.role == 'sub_admin' %}
+                <button type="button" class="btn btn-outline btn-sm"
+                        onclick="togglePermPanel('perm-{{ m.id }}')">⚙️ 권한 설정</button>
+                {% endif %}
                 {% endif %}
                 <form method="post" action="/admin/members/{{ m.id }}/delete" data-confirm="{{ m.activity_name }} 회원을 삭제하시겠습니까?" style="display:inline">
                   <button type="submit" class="btn btn-danger btn-sm">삭제</button>
@@ -159,6 +163,32 @@
                 </form>
               </td>
             </tr>
+            {% if is_admin and m.role == 'sub_admin' %}
+            {% set m_perms = m.permissions | fromjson if m.permissions else [] %}
+            <tr id="perm-{{ m.id }}" style="display:none;background:rgba(59,130,246,0.04)">
+              <td colspan="8" style="padding:14px 18px">
+                <form method="post" action="/admin/members/{{ m.id }}/set-permissions">
+                  <p style="font-size:.82rem;font-weight:700;margin:0 0 10px;color:var(--cartel-blue)">
+                    ⚙️ {{ m.activity_name }} 권한 설정
+                    <span style="font-weight:400;color:var(--muted);font-size:.76rem;margin-left:6px">체크한 항목만 허용됩니다</span>
+                  </p>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:12px">
+                    {% for key, label in admin_permissions %}
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                      <input type="checkbox" name="permissions" value="{{ key }}"
+                             {% if key in m_perms %}checked{% endif %}
+                             style="accent-color:var(--cartel-blue);width:15px;height:15px">
+                      {{ label }}
+                    </label>
+                    {% endfor %}
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-sm">저장</button>
+                  <button type="button" class="btn btn-ghost btn-sm"
+                          onclick="togglePermPanel('perm-{{ m.id }}')">닫기</button>
+                </form>
+              </td>
+            </tr>
+            {% endif %}
             {% endfor %}
           </tbody>
         </table>
@@ -271,6 +301,12 @@ function validateGenBulk() {
   }
   const count = [...document.querySelectorAll('.member-check')].filter(c => c.checked).length;
   return confirm(count + '명의 기수를 ' + gen + '기로 지정하시겠습니까?');
+}
+
+function togglePermPanel(id) {
+  const row = document.getElementById(id);
+  if (!row) return;
+  row.style.display = (row.style.display === 'none' || !row.style.display) ? '' : 'none';
 }
 </script>
 {% endblock %}

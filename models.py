@@ -100,8 +100,9 @@ class Member(Base):
     skills     = Column(Text, default="[]")       # JSON: [{"skill":"Python","category":"개발"}]
     links      = Column(Text, default="[]")       # JSON: [{"label":"GitHub","url":"https://..."}]
     comment_muted_until = Column(DateTime, nullable=True)
-    generation = Column(Integer, nullable=True)  # 기수 (1기, 2기, ...)
-    created_at = Column(DateTime, default=datetime.now)
+    generation  = Column(Integer, nullable=True)  # 기수 (1기, 2기, ...)
+    permissions = Column(Text, default="[]")      # JSON: 중간관리자 부여 권한 목록
+    created_at  = Column(DateTime, default=datetime.now)
 
 
 class InviteCode(Base):
@@ -337,6 +338,19 @@ class GalleryPost(Base):
     created_by_id = Column(Integer, nullable=False)
     is_public   = Column(Boolean, default=True)
     created_at  = Column(DateTime, default=datetime.now)
+
+
+class TeamKickRequest(Base):
+    """팀장이 접수 이후 팀원 강퇴 요청 — 관리자 승인 필요"""
+    __tablename__ = "team_kick_requests"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    team_id         = Column(Integer, nullable=False, index=True)
+    competition_id  = Column(Integer, nullable=False, index=True)
+    team_member_id  = Column(Integer, nullable=False)   # TeamMember.id
+    requested_by_id = Column(Integer, nullable=False)   # Member.id (팀장)
+    reason          = Column(Text, default="")
+    created_at      = Column(DateTime, default=datetime.now)
 
 
 class ExternalAchievement(Base):

@@ -233,6 +233,7 @@
             <button class="btn btn-ghost btn-xs leave-trigger"
               data-member-id="{{ leader_m.id }}" data-team-id="{{ team.id }}" data-comp-id="{{ comp.id }}"
               data-nickname="{{ leader_m.nickname }}" data-is-leader="true"
+              data-is-self="{{ 'true' if current_member and current_member.id == leader_m.member_id else 'false' }}"
               data-admin="{{ 'true' if is_admin else 'false' }}">탈퇴</button>
           </div>
         </div>
@@ -264,6 +265,7 @@
                 <button class="btn btn-ghost btn-xs leave-trigger"
                   data-member-id="{{ m.id }}" data-team-id="{{ team.id }}" data-comp-id="{{ comp.id }}"
                   data-nickname="{{ m.nickname }}" data-is-leader="false"
+                  data-is-self="{{ 'true' if current_member and current_member.id == m.member_id else 'false' }}"
                   data-admin="{{ 'true' if is_admin else 'false' }}">탈퇴</button>
               </div>
             </div>
@@ -843,24 +845,61 @@
   </div>
 </section>
 
+{# 강퇴 신청 대기 (관리자에게만 표시) #}
+{% if is_privileged and kick_requests %}
+<section class="detail-section" style="margin-top:24px">
+  <h2 class="section-title">⚠️ 강퇴 승인 대기 ({{ kick_requests | length }}건)</h2>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    {% for kr in kick_requests %}
+    {% set kr_tm = teams | map(attribute='members') | sum(start=[]) | selectattr('id','equalto',kr.team_member_id) | first %}
+    {% set kr_team = teams | selectattr('id','equalto',kr.team_id) | first %}
+    <div style="background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <p style="font-size:.85rem;font-weight:600;margin:0 0 4px">
+          팀 <strong>{{ kr_team.name if kr_team else kr.team_id }}</strong> ·
+          멤버 <strong>{{ kr_tm.nickname if kr_tm else kr.team_member_id }}</strong>
+        </p>
+        <p style="font-size:.8rem;color:var(--muted);margin:0">사유: {{ kr.reason }}</p>
+        <p style="font-size:.75rem;color:var(--muted);margin:2px 0 0">{{ kr.created_at.strftime('%Y.%m.%d %H:%M') }}</p>
+      </div>
+      <div style="display:flex;gap:6px">
+        <form method="post" action="/competition/{{ comp.id }}/kick-request/{{ kr.id }}/approve"
+              onsubmit="return confirm('강퇴를 승인하시겠습니까?')">
+          <button type="submit" class="btn btn-danger btn-sm">승인</button>
+        </form>
+        <form method="post" action="/competition/{{ comp.id }}/kick-request/{{ kr.id }}/deny">
+          <button type="submit" class="btn btn-outline btn-sm">거절</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {# 탈퇴 모달 #}
 <div id="leaveModal" class="modal-overlay" style="display:none">
   <div class="modal-box">
-    <h3 class="modal-title">팀 탈퇴</h3>
+    <h3 class="modal-title" id="leaveTitle">팀 탈퇴</h3>
     <p class="modal-desc" id="leaveDesc"></p>
     <form id="leaveForm" method="post">
       <div id="leaveFields">
         <label class="field">
           <span>닉네임 확인</span>
-          <input type="text" name="nickname" id="leaveNickname" required>
+          <input type="text" name="nickname" id="leaveNickname">
         </label>
         <label class="field" style="margin-top:.6rem">
           <span id="leaveVerifyLabel">인증</span>
-          <input type="text" name="verify_field" id="leaveVerify" required>
+          <input type="text" name="verify_field" id="leaveVerify">
+        </label>
+        <label class="field" id="kickReasonField" style="margin-top:.6rem;display:none">
+          <span>강퇴 사유 <small style="color:var(--danger)">(필수 — 관리자 승인 후 처리됩니다)</small></span>
+          <textarea name="kick_reason" id="kickReason" rows="2" maxlength="300"
+                    placeholder="강퇴 사유를 입력하세요" style="resize:vertical"></textarea>
         </label>
       </div>
       <div class="modal-actions">
-        <button type="submit" class="btn btn-danger">탈퇴 확인</button>
+        <button type="submit" class="btn btn-danger" id="leaveSubmitBtn">탈퇴 확인</button>
         <button type="button" class="btn btn-outline" id="leaveCancel">취소</button>
       </div>
     </form>
@@ -885,41 +924,64 @@ if (scrapBtn) {
 }
 
 // ── 탈퇴 모달 ──
-const leaveModal   = document.getElementById('leaveModal');
-const leaveForm    = document.getElementById('leaveForm');
-const leaveNick    = document.getElementById('leaveNickname');
-const leaveVerify  = document.getElementById('leaveVerify');
-const leaveLabel   = document.getElementById('leaveVerifyLabel');
-const leaveCancel  = document.getElementById('leaveCancel');
+const leaveModal      = document.getElementById('leaveModal');
+const leaveForm       = document.getElementById('leaveForm');
+const leaveNick       = document.getElementById('leaveNickname');
+const leaveVerify     = document.getElementById('leaveVerify');
+const leaveLabel      = document.getElementById('leaveVerifyLabel');
+const leaveCancel     = document.getElementById('leaveCancel');
+const leaveTitle      = document.getElementById('leaveTitle');
+const leaveSubmitBtn  = document.getElementById('leaveSubmitBtn');
+const kickReasonField = document.getElementById('kickReasonField');
+const kickReason      = document.getElementById('kickReason');
+
+// 접수 시작 여부 (서버에서 전달)
+const compStarted = {{ 'true' if comp_started else 'false' }};
+// 현재 유저가 팀장인 팀 IDs
+const leaderTeamIds = new Set({{ leader_team_ids | list | tojson }});
 
 document.querySelectorAll('.leave-trigger').forEach(btn => {
   btn.addEventListener('click', () => {
-    const memberId = btn.dataset.memberId;
-    const teamId   = btn.dataset.teamId;
-    const compId   = btn.dataset.compId;
-    const nickname = btn.dataset.nickname;
-    const isLeader = btn.dataset.isLeader === 'true';
-    const isAdmin  = btn.dataset.admin === 'true';
+    const memberId    = btn.dataset.memberId;
+    const teamId      = btn.dataset.teamId;
+    const compId      = btn.dataset.compId;
+    const nickname    = btn.dataset.nickname;
+    const isLeader    = btn.dataset.isLeader === 'true';  // 탈퇴 대상이 팀장인지
+    const isAdmin     = btn.dataset.admin === 'true';
+    const memberMembId = btn.dataset.memberMembId || '';   // 탈퇴 대상 Member.id
 
     leaveForm.action = `/competition/${compId}/team/${teamId}/leave/${memberId}`;
-    leaveNick.value  = nickname;
 
+    // ── 관리자: 확인 대화상자 후 즉시 제출 ──
     if (isAdmin) {
-      // 관리자: 입력 필드 숨기고 바로 제출
-      document.getElementById('leaveFields').style.display = 'none';
-    } else {
-      document.getElementById('leaveFields').style.display = '';
-      leaveNick.value = '';
+      if (!confirm(`'${nickname}' 팀원을 내보내시겠습니까?`)) return;
+      leaveNick.value   = nickname;
       leaveVerify.value = '';
-      if (isLeader) {
-        leaveLabel.textContent = '비밀번호 확인';
-        leaveVerify.type = 'password';
-        leaveVerify.placeholder = '팀 생성 시 설정한 비밀번호';
-      } else {
-        leaveLabel.textContent = '학번 확인';
-        leaveVerify.type = 'text';
-        leaveVerify.placeholder = '신청 시 입력한 학번';
-      }
+      leaveForm.submit();
+      return;
+    }
+
+    // ── 팀장이 타 팀원 강퇴 + 접수 이후 → 사유 입력 ──
+    const isSelf = (btn.dataset.isSelf === 'true');
+    const needsReason = !isSelf && leaderTeamIds.has(parseInt(teamId)) && compStarted;
+
+    leaveTitle.textContent = isSelf ? '팀 탈퇴' : '팀원 강퇴';
+    leaveSubmitBtn.textContent = needsReason ? '강퇴 신청 (관리자 승인 필요)' : (isSelf ? '탈퇴 확인' : '강퇴 확인');
+    leaveSubmitBtn.className = needsReason ? 'btn btn-warning' : 'btn btn-danger';
+
+    leaveNick.value   = '';
+    leaveVerify.value = '';
+    kickReasonField.style.display = needsReason ? '' : 'none';
+    if (kickReason) kickReason.value = '';
+
+    if (isLeader) {
+      leaveLabel.textContent = '비밀번호 확인';
+      leaveVerify.type = 'password';
+      leaveVerify.placeholder = '팀 생성 시 설정한 비밀번호';
+    } else {
+      leaveLabel.textContent = '학번 확인';
+      leaveVerify.type = 'text';
+      leaveVerify.placeholder = '신청 시 입력한 학번';
     }
     leaveModal.style.display = 'flex';
   });

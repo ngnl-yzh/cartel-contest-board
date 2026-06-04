@@ -57,7 +57,7 @@ from models import (
     JobCrawlSession, JobPosting, Member,
     DirectMessage, ExternalAchievement, Follow, Notification,
     Post, PostLike,
-    GalleryPost, Team, TeamCompetitionEntry, TeamMember, TeamResult,
+    GalleryPost, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -191,6 +191,34 @@ from crawler import CONTESTKOREA_CATS as _CONTESTKOREA_CATS
 _DEFAULT_TAGS = list(_CONTESTKOREA_CATS)
 TAGS = _DEFAULT_TAGS  # fallback (DB 접근 전 사용)
 ROLES = ["기획", "개발", "디자인", "마케팅"]
+
+# 중간관리자에게 부여할 수 있는 권한 목록 (중간관리자 임명 제외)
+ADMIN_PERMISSIONS = [
+    ("competitions", "공모전 관리"),
+    ("crawl",        "크롤링 / URL 등록"),
+    ("members",      "회원 관리"),
+    ("gallery",      "갤러리 관리"),
+    ("invites",      "초대코드 관리"),
+    ("jobs",         "채용 관리"),
+    ("settings",     "설정 관리"),
+]
+
+
+def _member_perms(member) -> list:
+    """멤버의 permissions JSON 리스트 반환"""
+    if not member:
+        return []
+    return _from_json(getattr(member, "permissions", None) or "[]")
+
+
+def _has_perm(request, db, perm: str) -> bool:
+    """관리자는 항상 True, 중간관리자는 permissions 목록에 perm이 있어야 True"""
+    if _is_admin(request):
+        return True
+    cm = _current_member(request, db)
+    if cm and cm.role == "sub_admin":
+        return perm in _member_perms(cm)
+    return False
 
 
 def _get_tags(db: Session) -> list[str]:
@@ -959,8 +987,14 @@ async def detail(request: Request, comp_id: int, db: Session = Depends(get_db)):
 
     # 관리자용 — 팀원 직접 추가 / 팀 생성에 사용할 전체 멤버 목록
     all_members_for_admin = []
+    kick_requests = []
     if _is_privileged(request, db):
         all_members_for_admin = db.query(Member).order_by(Member.activity_name).all()
+        kick_requests = db.query(TeamKickRequest).filter(
+            TeamKickRequest.competition_id == comp_id
+        ).order_by(TeamKickRequest.created_at.asc()).all()
+
+    comp_started = bool(comp.start_date and today >= comp.start_date)
 
     return _render(request,
         "detail.html",
@@ -977,7 +1011,9 @@ async def detail(request: Request, comp_id: int, db: Session = Depends(get_db)):
              comp_stages=COMP_STAGES,
              is_participating=is_participating,
              my_entry_team_id=my_entry_team_id,
-             all_members_for_admin=all_members_for_admin),
+             all_members_for_admin=all_members_for_admin,
+             kick_requests=kick_requests,
+             comp_started=comp_started),
     )
 
 
@@ -2067,7 +2103,8 @@ async def admin_members(request: Request, q: str = Query(default=""), db: Sessio
         })
 
     return _render(request, "admin/members.html", _ctx(request, db,
-        members=members, code_groups=code_groups, query=q, now=_now()
+        members=members, code_groups=code_groups, query=q, now=_now(),
+        admin_permissions=ADMIN_PERMISSIONS,
     ))
 
 
@@ -2096,6 +2133,24 @@ async def admin_set_role(request: Request, member_id: int, role: str = Form(...)
     m = db.query(Member).filter(Member.id == member_id).first()
     if m and role in ("member", "sub_admin"):
         m.role = role
+        db.commit()
+    return RedirectResponse(url="/admin/members", status_code=303)
+
+
+@app.post("/admin/members/{member_id}/set-permissions")
+async def admin_set_permissions(
+    request: Request, member_id: int,
+    permissions: List[str] = Form(default=[]),
+    db: Session = Depends(get_db),
+):
+    """메인 관리자 전용 — 중간관리자 권한 설정"""
+    if r := _admin_redirect(request):
+        return r
+    m = db.query(Member).filter(Member.id == member_id).first()
+    if m and m.role == "sub_admin":
+        valid_keys = {k for k, _ in ADMIN_PERMISSIONS}
+        filtered = [p for p in permissions if p in valid_keys]
+        m.permissions = json.dumps(filtered, ensure_ascii=False)
         db.commit()
     return RedirectResponse(url="/admin/members", status_code=303)
 
@@ -3142,8 +3197,9 @@ async def reject_member(
 @app.post("/competition/{comp_id}/team/{team_id}/leave/{member_id}")
 async def team_leave(
     request: Request, comp_id: int, team_id: int, member_id: int,
-    nickname: str = Form(...),
-    verify_field: str = Form(""),   # 팀장: 비밀번호 / 팀원: 학번
+    nickname: str = Form(""),
+    verify_field: str = Form(""),
+    kick_reason: str = Form(""),
     db: Session = Depends(get_db),
 ):
     team_check = db.query(Team).filter(Team.id == team_id, Team.competition_id == comp_id).first()
@@ -3155,17 +3211,42 @@ async def team_leave(
     if not member:
         raise HTTPException(status_code=404)
 
-    if not _is_privileged(request, db):
+    is_priv = _is_privileged(request, db)
+    cm = _current_member(request, db)
+
+    if not is_priv:
         if member.nickname != nickname:
             raise HTTPException(status_code=400, detail="닉네임이 올바르지 않습니다.")
         if member.is_leader:
-            # 팀장은 비밀번호로 인증
             if not (member.password_hash and verify_team_password(verify_field, member.password_hash)):
                 raise HTTPException(status_code=400, detail="비밀번호가 올바르지 않습니다.")
         else:
-            # 팀원은 학번으로 인증
             if member.student_id != verify_field.strip():
                 raise HTTPException(status_code=400, detail="학번이 올바르지 않습니다.")
+
+    # ── 팀장이 타 팀원을 강퇴하는 경우, 접수 이후엔 관리자 승인 필요 ──
+    if not is_priv and cm:
+        is_requester_leader = bool(db.query(TeamMember).filter(
+            TeamMember.team_id == team_id,
+            TeamMember.is_leader.is_(True),
+            or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name),
+        ).first())
+        is_kicking_other = (member.member_id != cm.id)
+        comp = db.query(Competition).filter(Competition.id == comp_id).first()
+        after_start = bool(comp and comp.start_date and _today() >= comp.start_date)
+
+        if is_requester_leader and is_kicking_other and after_start:
+            if not kick_reason.strip():
+                raise HTTPException(status_code=400, detail="접수 이후 강퇴는 사유를 입력해야 합니다.")
+            db.add(TeamKickRequest(
+                team_id=team_id,
+                competition_id=comp_id,
+                team_member_id=member_id,
+                requested_by_id=cm.id,
+                reason=kick_reason.strip(),
+            ))
+            db.commit()
+            return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
 
     was_leader = member.is_leader
     db.delete(member)
@@ -3177,11 +3258,43 @@ async def team_leave(
         if team:
             db.delete(team)
     elif was_leader:
-        # 승인된 팀원 중 가장 오래된 사람을 팀장으로 승격
         next_leader = next((r for r in remaining if not r.is_leader and r.status == "approved"), remaining[0])
         next_leader.is_leader = True
 
     db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/kick-request/{req_id}/approve")
+async def approve_kick_request(request: Request, comp_id: int, req_id: int, db: Session = Depends(get_db)):
+    """관리자: 강퇴 요청 승인 → 팀원 즉시 삭제"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    req = db.query(TeamKickRequest).filter(TeamKickRequest.id == req_id).first()
+    if not req:
+        raise HTTPException(status_code=404)
+    member = db.query(TeamMember).filter(TeamMember.id == req.team_member_id).first()
+    if member:
+        db.delete(member)
+        remaining = db.query(TeamMember).filter(TeamMember.team_id == req.team_id).all()
+        if not remaining:
+            team = db.query(Team).filter(Team.id == req.team_id).first()
+            if team:
+                db.delete(team)
+    db.delete(req)
+    db.commit()
+    return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
+
+
+@app.post("/competition/{comp_id}/kick-request/{req_id}/deny")
+async def deny_kick_request(request: Request, comp_id: int, req_id: int, db: Session = Depends(get_db)):
+    """관리자: 강퇴 요청 거절 → 요청 삭제"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    req = db.query(TeamKickRequest).filter(TeamKickRequest.id == req_id).first()
+    if req:
+        db.delete(req)
+        db.commit()
     return RedirectResponse(url=f"/competition/{comp_id}#team", status_code=303)
 
 

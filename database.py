@@ -52,10 +52,11 @@ def init_db():
 
         if "members" in tables:
             _add_col(conn, inspector, "members", "comment_muted_until", "comment_muted_until TIMESTAMP")
-            _add_col(conn, inspector, "members", "intro_text",  "intro_text TEXT DEFAULT ''")
-            _add_col(conn, inspector, "members", "skills",      "skills TEXT DEFAULT '[]'")
-            _add_col(conn, inspector, "members", "links",       "links TEXT DEFAULT '[]'")
-            _add_col(conn, inspector, "members", "generation",  "generation INTEGER")
+            _add_col(conn, inspector, "members", "intro_text",   "intro_text TEXT DEFAULT ''")
+            _add_col(conn, inspector, "members", "skills",       "skills TEXT DEFAULT '[]'")
+            _add_col(conn, inspector, "members", "links",        "links TEXT DEFAULT '[]'")
+            _add_col(conn, inspector, "members", "generation",   "generation INTEGER")
+            _add_col(conn, inspector, "members", "permissions",  "permissions TEXT DEFAULT '[]'")
 
         if "invite_codes" in tables:
             _add_col(conn, inspector, "invite_codes", "code_type", "code_type VARCHAR(20) DEFAULT 'personal'")
