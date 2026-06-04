@@ -522,6 +522,38 @@ def _optimize_image(data: bytes, max_px: int = 1920, quality: int = 85) -> tuple
         return data, "image/jpeg"   # Pillow 실패 시 원본 그대로
 
 
+async def _gpt_gallery_caption(image_bytes: bytes, ctype: str, hint: str = "") -> str:
+    """
+    GPT-4o 비전으로 갤러리 사진에 재미있는 코멘트 자동 생성.
+    OPENAI_API_KEY 없으면 빈 문자열 반환.
+    """
+    if not os.getenv("OPENAI_API_KEY"):
+        return ""
+    try:
+        import base64 as _b64
+        from ai_parser import _client as _ai_client
+        encoded  = _b64.b64encode(image_bytes).decode()
+        data_url = f"data:{ctype};base64,{encoded}"
+        prompt   = (
+            "이 사진을 보고 재미있고 유쾌한 한 줄 갤러리 코멘트를 한국어로 작성해주세요. "
+            "위트 있고 공감 가는 표현으로, 이모지를 적절히 섞어 100자 이내로 써주세요."
+        )
+        if hint.strip():
+            prompt += f" 작성자 힌트: \"{hint.strip()}\""
+        resp = await _ai_client().chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            messages=[{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": data_url, "detail": "low"}},
+                {"type": "text",      "text": prompt},
+            ]}],
+            max_tokens=120,
+            temperature=0.9,
+        )
+        return (resp.choices[0].message.content or "").strip()
+    except Exception:
+        return ""
+
+
 def _is_valid_image_bytes(content: bytes) -> bool:
     """매직 바이트로 실제 이미지 파일 여부 확인 (확장자 스푸핑 방지)"""
     if len(content) < 12:
@@ -1442,6 +1474,8 @@ async def gallery_new(
     event_type: str = Form("기타"),
     event_date: Optional[str] = Form(None),
     is_public: Optional[str] = Form(None),
+    gpt_decorate: Optional[str] = Form(None),
+    gpt_hint: str = Form(""),
     images: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
@@ -1452,6 +1486,8 @@ async def gallery_new(
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
 
     saved_images = []
+    first_img_data: Optional[bytes] = None
+    first_img_ctype: str = "image/jpeg"
     for img in images:
         if img and img.filename:
             ext = Path(img.filename).suffix.lower()
@@ -1460,10 +1496,20 @@ async def gallery_new(
             data = await img.read()
             if len(data) > 20 * 1024 * 1024:
                 continue
-            data, ctype = _optimize_image(data)   # 자동 리사이즈+압축+EXIF 보정
+            data, ctype = _optimize_image(data)
+            if first_img_data is None:
+                first_img_data = data
+                first_img_ctype = ctype
             fname = f"{uuid.uuid4().hex}.jpg"
             _storage_upload(data, fname, ctype)
             saved_images.append(fname)
+
+    # GPT 꾸미기 — 첫 번째 사진으로 재미있는 코멘트 자동 생성
+    final_desc = description.strip()
+    if gpt_decorate and first_img_data:
+        gpt_result = await _gpt_gallery_caption(first_img_data, first_img_ctype, gpt_hint)
+        if gpt_result:
+            final_desc = gpt_result
 
     parsed_date = None
     if event_date:
@@ -1474,7 +1520,7 @@ async def gallery_new(
 
     post = GalleryPost(
         title=title.strip(),
-        description=description.strip(),
+        description=final_desc,
         event_type=event_type,
         event_date=parsed_date,
         images=json.dumps(saved_images, ensure_ascii=False),
@@ -1514,6 +1560,8 @@ async def easter_gallery_new(
     description: str = Form(""),
     event_type: str = Form("기타"),
     event_date: Optional[str] = Form(None),
+    gpt_decorate: Optional[str] = Form(None),
+    gpt_hint: str = Form(""),
     images: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
@@ -1521,6 +1569,8 @@ async def easter_gallery_new(
         raise HTTPException(status_code=403)
 
     saved_images = []
+    first_img_data: Optional[bytes] = None
+    first_img_ctype: str = "image/jpeg"
     for img in images:
         if img and img.filename:
             ext = Path(img.filename).suffix.lower()
@@ -1530,9 +1580,18 @@ async def easter_gallery_new(
             if len(data) > 20 * 1024 * 1024:
                 continue
             data, ctype = _optimize_image(data)
+            if first_img_data is None:
+                first_img_data = data
+                first_img_ctype = ctype
             fname = f"{uuid.uuid4().hex}.jpg"
             _storage_upload(data, fname, ctype)
             saved_images.append(fname)
+
+    final_desc = description.strip()
+    if gpt_decorate and first_img_data:
+        gpt_result = await _gpt_gallery_caption(first_img_data, first_img_ctype, gpt_hint)
+        if gpt_result:
+            final_desc = gpt_result
 
     parsed_date = None
     if event_date:
@@ -1543,7 +1602,7 @@ async def easter_gallery_new(
 
     post = GalleryPost(
         title=title.strip(),
-        description=description.strip(),
+        description=final_desc,
         event_type=event_type,
         event_date=parsed_date,
         images=json.dumps(saved_images, ensure_ascii=False),

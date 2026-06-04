@@ -40,12 +40,27 @@
           <input type="date" name="event_date" class="form-control">
         </div>
         <div style="grid-column:1/-1">
-          <label class="form-label">설명 (선택)</label>
-          <textarea name="description" class="form-control" rows="2" placeholder="행사 소개를 간단히 적어주세요"></textarea>
-        </div>
-        <div style="grid-column:1/-1">
           <label class="form-label">사진 업로드 (여러 장, 각 20MB 이하)</label>
           <input type="file" name="images" class="form-control" multiple accept="image/*">
+        </div>
+        <div style="grid-column:1/-1">
+          <label class="form-label">설명 (선택)</label>
+          <textarea name="description" class="form-control" rows="2"
+                    placeholder="행사 소개를 간단히 적어주세요 (GPT 꾸미기 켜면 자동 생성)"></textarea>
+        </div>
+        {# GPT 꾸미기 #}
+        <div style="grid-column:1/-1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
+            <input type="checkbox" name="gpt_decorate" value="true"
+                   id="gptDecorateChk" onchange="toggleGptHint(this,'gptHintRow')"
+                   style="width:16px;height:16px;accent-color:#7c3aed">
+            <span style="font-size:.88rem;font-weight:600">✨ GPT 꾸미기 — 사진 보고 재미있는 코멘트 자동 생성</span>
+          </label>
+          <div id="gptHintRow" style="display:none;padding:10px 12px;background:rgba(124,58,237,.06);border-radius:8px;border:1px solid rgba(124,58,237,.2)">
+            <label class="form-label" style="font-size:.78rem;color:#7c3aed">GPT에게 힌트 주기 <small>(선택)</small></label>
+            <input type="text" name="gpt_hint" class="form-control"
+                   placeholder="예) 종강 뒤풀이, 술자리, 노래방 ..." maxlength="100">
+          </div>
         </div>
         <div style="grid-column:1/-1">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -735,6 +750,12 @@
 </style>
 
 <script>
+// GPT 힌트 입력창 토글
+function toggleGptHint(chk, rowId) {
+  var row = document.getElementById(rowId);
+  if (row) row.style.display = chk.checked ? '' : 'none';
+}
+
 // 갤러리 수정 폼 토글
 function toggleEditForm(postId) {
   var form = document.getElementById('editForm-' + postId);
