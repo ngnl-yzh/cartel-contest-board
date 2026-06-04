@@ -551,8 +551,8 @@
             {# 팀원 임의 추가 #}
             <p class="form-label" style="margin:0 0 8px;font-size:.8rem;font-weight:700">팀원 추가</p>
             <form method="post" action="/competition/{{ comp.id }}/team/{{ team.id }}/admin-add-member">
-              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <div style="flex:2;min-width:160px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                <div>
                   <label class="form-label" style="font-size:.76rem">멤버</label>
                   <select name="member_id" class="form-control form-control-sm admin-member-select" required>
                     <option value="">-- 멤버 선택 --</option>
@@ -564,13 +564,23 @@
                     {% endfor %}
                   </select>
                 </div>
-                <div style="flex:1;min-width:90px">
-                  <label class="form-label" style="font-size:.76rem">역할 (직접 입력)</label>
-                  <input type="text" name="role" class="form-control form-control-sm"
-                         placeholder="예) 기획, 개발" maxlength="30">
+                <div>
+                  <label class="form-label" style="font-size:.76rem">역할</label>
+                  <select class="form-control form-control-sm"
+                          onchange="onRolePreset(this,'roleCustom-{{ team.id }}','roleVal-{{ team.id }}')">
+                    <option value="">-- 선택 --</option>
+                    {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+                    <option value="__custom__">기타 (직접 입력)</option>
+                  </select>
+                  <input type="text" name="role" id="roleVal-{{ team.id }}" value=""
+                         maxlength="30" style="display:none">
+                  <input type="text" id="roleCustom-{{ team.id }}" placeholder="역할 직접 입력"
+                         maxlength="30" class="form-control form-control-sm"
+                         style="display:none;margin-top:4px"
+                         oninput="document.getElementById('roleVal-{{ team.id }}').value=this.value">
                 </div>
-                <button type="submit" class="btn btn-primary btn-sm">추가</button>
               </div>
+              <button type="submit" class="btn btn-primary btn-sm">추가</button>
             </form>
 
             {# 팀장 교체 #}
@@ -752,8 +762,17 @@
               </select>
             </label>
             <label class="field">
-              <span>팀장 역할 <small>(직접 입력)</small></span>
-              <input type="text" name="role" placeholder="예) 팀장, 기획, 개발" maxlength="30">
+              <span>팀장 역할</span>
+              <select onchange="onRolePreset(this,'roleCustomAdmin','roleValAdmin')">
+                <option value="">-- 선택 --</option>
+                {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+                <option value="__custom__">기타 (직접 입력)</option>
+              </select>
+              <input type="text" name="role" id="roleValAdmin" value="" maxlength="30" style="display:none">
+              <input type="text" id="roleCustomAdmin" placeholder="역할 직접 입력"
+                     maxlength="30" class="form-control"
+                     style="display:none;margin-top:4px"
+                     oninput="document.getElementById('roleValAdmin').value=this.value">
             </label>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top:12px">팀 생성</button>
@@ -849,6 +868,22 @@ document.querySelectorAll('.leave-trigger').forEach(btn => {
 
 leaveCancel && leaveCancel.addEventListener('click', () => { leaveModal.style.display = 'none'; });
 leaveModal  && leaveModal.addEventListener('click', e => { if (e.target === leaveModal) leaveModal.style.display = 'none'; });
+
+// 역할 선택 — 기타 선택 시 직접 입력 필드 표시
+function onRolePreset(sel, customId, hiddenId) {
+  const custom = document.getElementById(customId);
+  const hidden = document.getElementById(hiddenId);
+  if (!custom || !hidden) return;
+  if (sel.value === '__custom__') {
+    custom.style.display = '';
+    hidden.value = '';
+    custom.value = '';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+    hidden.value = sel.value;
+  }
+}
 
 // 팀장 교체 — select 값을 form action URL에 동적으로 반영
 function submitChangeLeader(e, teamId) {
