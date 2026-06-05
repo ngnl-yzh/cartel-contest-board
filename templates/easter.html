@@ -486,7 +486,9 @@
                     <div class="gallery-quill-wrap" id="eEditQuillWrap-{{ post.id }}">
                       <div id="eEditQuill-{{ post.id }}"></div>
                     </div>
+                    {# value에 기존 내용을 미리 넣어두어 JS 없이도 보존되도록 #}
                     <input type="hidden" name="description" id="eEditDesc-{{ post.id }}"
+                           value="{{ post.description | e }}"
                            data-initial="{{ post.description | e }}">
                   </div>
                   {% if imgs_e %}
@@ -762,18 +764,17 @@ function eToggleEditForm(postId) {
       if (typeof ImageResize !== 'undefined') mods.imageResize = { modules:['Resize','DisplaySize'] };
       var q = new Quill(container, { theme:'snow', placeholder:'설명을 입력하세요', modules: mods });
 
-      // 기존 내용 로드 후 즉시 hidden input에 동기화
-      if (hiddenInp.dataset.initial && hiddenInp.dataset.initial.trim()) {
-        q.clipboard.dangerouslyPasteHTML(hiddenInp.dataset.initial);
+      // 기존 내용 로드 (에디터 표시용)
+      var initHtml = hiddenInp.dataset.initial || '';
+      if (initHtml.trim()) {
+        q.clipboard.dangerouslyPasteHTML(initHtml);
       }
-      // dangerouslyPasteHTML 은 text-change를 트리거하지 않을 수 있으므로 강제 동기화
-      hiddenInp.value = q.root.innerHTML;
 
-      // 이후 편집 시 실시간 동기화
+      // 편집 시 실시간 동기화 (text-change는 dangerouslyPasteHTML 이후 변경분만 감지)
       q.on('text-change', function() { hiddenInp.value = q.root.innerHTML; });
       _eEditQuills[postId] = q;
 
-      // 제출 직전 한 번 더 강제 동기화 (안전장치)
+      // 제출 직전 무조건 최신값으로 덮어씀 (가장 중요한 안전장치)
       formWrap.querySelector('form').addEventListener('submit', function() {
         hiddenInp.value = q.root.innerHTML;
       });
