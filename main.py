@@ -1452,7 +1452,7 @@ async def gallery_page(request: Request, db: Session = Depends(get_db)):
     q = db.query(GalleryPost).filter(GalleryPost.is_easter.is_(False))
     if not is_admin_:
         q = q.filter(GalleryPost.is_public.is_(True))
-    posts = q.order_by(GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
+    posts = q.order_by(GalleryPost.sort_order, GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
 
     # 연도별 그룹핑 (event_date 없으면 created_at 연도 사용)
     posts_by_year: dict = {}
@@ -1568,7 +1568,7 @@ async def easter_gallery_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/gallery", status_code=302)
     posts = db.query(GalleryPost).filter(
         GalleryPost.is_easter.is_(True)
-    ).order_by(GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
+    ).order_by(GalleryPost.sort_order, GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
 
     posts_by_year: dict = {}
     for p in posts:
@@ -1654,6 +1654,36 @@ async def easter_gallery_delete(request: Request, post_id: int, db: Session = De
         db.delete(post)
         db.commit()
     return RedirectResponse(url="/gallery/c", status_code=303)
+
+
+@app.post("/gallery/reorder")
+async def gallery_reorder(request: Request, db: Session = Depends(get_db)):
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    data = await request.json()
+    order = data.get("order", [])
+    for idx, post_id in enumerate(order):
+        db.query(GalleryPost).filter(
+            GalleryPost.id == int(post_id),
+            GalleryPost.is_easter.is_(False),
+        ).update({"sort_order": idx * 10})
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/gallery/c/reorder")
+async def easter_gallery_reorder(request: Request, db: Session = Depends(get_db)):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403)
+    data = await request.json()
+    order = data.get("order", [])
+    for idx, post_id in enumerate(order):
+        db.query(GalleryPost).filter(
+            GalleryPost.id == int(post_id),
+            GalleryPost.is_easter.is_(True),
+        ).update({"sort_order": idx * 10})
+    db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/gallery/{post_id}/delete")

@@ -109,7 +109,8 @@ def init_db():
         # job_postings — 신규 테이블이므로 create_all로 생성됨 (추가 컬럼 없음)
 
         if "gallery_posts" in tables:
-            _add_col(conn, inspector, "gallery_posts", "is_easter", "is_easter BOOLEAN DEFAULT FALSE")
+            _add_col(conn, inspector, "gallery_posts", "is_easter",   "is_easter BOOLEAN DEFAULT FALSE")
+            _add_col(conn, inspector, "gallery_posts", "sort_order",  "sort_order INTEGER DEFAULT 0")
 
         if "chat_rooms" in tables and "chat_room_members" in tables:
             rooms = conn.execute(_t(

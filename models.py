@@ -338,6 +338,7 @@ class GalleryPost(Base):
     created_by_id = Column(Integer, nullable=False)
     is_public   = Column(Boolean, default=True)
     is_easter   = Column(Boolean, default=False)        # 이스터에그 갤러리 여부
+    sort_order  = Column(Integer, default=0, nullable=False, server_default="0")
     created_at  = Column(DateTime, default=datetime.now)
 
 

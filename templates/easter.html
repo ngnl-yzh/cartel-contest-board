@@ -210,6 +210,61 @@ body { background:#0d0d14; }
 .c-lightbox-next { right:20px; }
 .c-lightbox-prev:hover,.c-lightbox-next:hover { background:rgba(255,255,255,.25); }
 .gl-no-photo { text-align:center; padding:30px; color:rgba(167,139,250,.5); font-size:.88rem; background:rgba(124,58,237,.06); border-radius:10px; border:1px dashed rgba(124,58,237,.25); }
+
+/* ── 배치 편집 버튼 ── */
+.e-arrange-btn {
+  font-family:var(--font-display); font-size:.85rem; font-weight:600;
+  padding:9px 17px;
+  background:rgba(124,58,237,.15);
+  border:1.5px solid rgba(124,58,237,.4);
+  border-radius:10px; color:rgba(196,181,253,.9);
+  cursor:pointer; white-space:nowrap; transition:all .18s;
+}
+.e-arrange-btn:hover {
+  background:rgba(124,58,237,.28); border-color:#a78bfa; color:#e2d9f3;
+}
+
+/* ── 편집 모드 바 ── */
+#eEditModeBar {
+  display:none; align-items:center; gap:12px;
+  position:sticky; top:64px; z-index:200;
+  background:rgba(26,10,46,.96);
+  border:1.5px solid #a78bfa;
+  border-radius:14px; padding:12px 20px; margin:16px 0;
+  box-shadow:0 4px 24px rgba(124,58,237,.35);
+  backdrop-filter:blur(8px);
+}
+#eEditModeBar .em-title { font-weight:700; color:#c4b5fd; }
+#eEditModeBar .em-hint  { color:rgba(167,139,250,.7); font-size:.82rem; }
+
+/* ── 드래그 핸들 ── */
+.e-drag-handle {
+  display:none; align-items:center; justify-content:center;
+  cursor:grab; font-size:1.2rem; color:rgba(124,58,237,.5);
+  padding:0 4px; line-height:1; user-select:none; flex-shrink:0;
+  transition:color .15s; touch-action:none;
+}
+.e-drag-handle:active { cursor:grabbing; }
+.e-is-editing .e-drag-handle { display:flex; }
+.e-is-editing .e-drag-handle:hover { color:#a78bfa; }
+
+/* ── 편집 모드 섹션 강조 ── */
+.e-is-editing .gl-event-section {
+  border:1.5px solid transparent; border-radius:10px;
+  padding:6px 10px; margin-bottom:10px !important; cursor:default;
+  transition:border-color .15s, background .15s;
+}
+.e-is-editing .gl-event-section:hover {
+  border-color:rgba(124,58,237,.4);
+  background:rgba(124,58,237,.06);
+}
+.e-drag-ghost {
+  opacity:.4 !important;
+  background:rgba(124,58,237,.1) !important;
+  border:2px dashed #a78bfa !important;
+  border-radius:10px !important;
+}
+.e-drag-chosen { box-shadow:0 6px 24px rgba(124,58,237,.3) !important; }
 </style>
 
 {# ── 히어로 ── #}
@@ -221,7 +276,10 @@ body { background:#0d0d14; }
       <p class="c-hero-sub" style="opacity:.6">여기까지 찾아온 당신, 눈치가 빠르군요.</p>
     </div>
     {% if is_admin %}
-    <button class="e-add-btn" id="newEasterBtn">＋ 추가</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="e-add-btn" id="newEasterBtn">＋ 추가</button>
+      <button class="e-arrange-btn" id="eArrangeModeBtn" onclick="enterEArrangeMode()">⠿ 배치 편집</button>
+    </div>
     {% endif %}
   </div>
 </div>
@@ -303,6 +361,17 @@ body { background:#0d0d14; }
       {% endfor %}
     </div>
 
+    {% if is_admin %}
+    <div id="eEditModeBar">
+      <span class="em-title">✏️ 배치 편집 모드</span>
+      <span class="em-hint">섹션을 드래그해서 순서를 바꾸세요</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button id="eEmSaveBtn" class="e-submit-btn" style="padding:7px 18px;font-size:.82rem" onclick="exitEArrangeMode(true)">💾 저장</button>
+        <button class="e-cancel-btn" style="padding:7px 14px;font-size:.82rem" onclick="exitEArrangeMode(false)">취소</button>
+      </div>
+    </div>
+    {% endif %}
+
     <div id="eGalleryContainer">
       {% for year in sorted_years %}
       {% set year_posts = posts_by_year[year] %}
@@ -319,9 +388,10 @@ body { background:#0d0d14; }
           {% for post in year_posts %}
           {% set imgs = post.images | fromjson %}
           {% set img_count = imgs | length %}
-          <section class="gl-event-section" data-type="{{ post.event_type }}">
+          <section class="gl-event-section" data-type="{{ post.event_type }}" data-id="{{ post.id }}">
             <div class="gl-event-header">
               <div class="gl-event-header-left">
+                <span class="e-drag-handle" title="드래그하여 순서 변경">⠿</span>
                 <span class="gl-event-type-badge" style="background:#7c3aed">{{ post.event_type }}</span>
                 <h2 class="gl-event-title">{{ post.title }}</h2>
               </div>
@@ -389,6 +459,7 @@ body { background:#0d0d14; }
 
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 // 이미지 리사이즈 모듈 등록
 if (typeof ImageResize !== 'undefined') {
@@ -551,6 +622,66 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'ArrowRight') eLightboxNav(1);
   if (e.key === 'Escape')     eCloseLightbox();
 });
+
+// ── 배치 편집 모드 (이스터에그) ──
+var _eSortables = [];
+
+function enterEArrangeMode() {
+  document.getElementById('eGalleryContainer').classList.add('e-is-editing');
+  document.getElementById('eEditModeBar').style.display = 'flex';
+  document.getElementById('eArrangeModeBtn').style.display = 'none';
+  document.getElementById('newEasterBtn').style.display = 'none';
+  // 접혀 있는 섹션 펼치기
+  document.querySelectorAll('.easter-section-body[style*="none"]').forEach(function(b) {
+    b.style.display = '';
+    var btn = b.closest('.gl-event-section').querySelector('.easter-section-toggle');
+    if (btn) { btn.setAttribute('aria-expanded','true'); btn.textContent = '접기 ▲'; }
+  });
+  // 모든 연도 펼치기
+  document.querySelectorAll('#eGalleryContainer .gl-year-body[style*="none"]').forEach(function(b) {
+    b.style.display = '';
+    var btn = b.previousElementSibling;
+    if (btn) { btn.setAttribute('aria-expanded','true'); btn.querySelector('.gl-year-arrow').textContent = '▲'; }
+  });
+  document.querySelectorAll('#eGalleryContainer .gl-year-body').forEach(function(body) {
+    _eSortables.push(Sortable.create(body, {
+      group: 'easter',
+      animation: 160,
+      handle: '.e-drag-handle',
+      ghostClass: 'e-drag-ghost',
+      chosenClass: 'e-drag-chosen',
+    }));
+  });
+}
+
+function exitEArrangeMode(save) {
+  if (save) {
+    var order = [];
+    document.querySelectorAll('#eGalleryContainer .gl-event-section').forEach(function(sec) {
+      var id = parseInt(sec.dataset.id);
+      if (id) order.push(id);
+    });
+    var saveBtn = document.getElementById('eEmSaveBtn');
+    saveBtn.textContent = '저장 중…'; saveBtn.disabled = true;
+    fetch('/gallery/c/reorder', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({order: order})
+    }).then(function(r) {
+      if (r.ok) { location.reload(); }
+      else { saveBtn.textContent = '💾 저장'; saveBtn.disabled = false; alert('저장 실패'); }
+    }).catch(function() {
+      saveBtn.textContent = '💾 저장'; saveBtn.disabled = false; alert('네트워크 오류');
+    });
+    return;
+  }
+  _eSortables.forEach(function(s) { s.destroy(); });
+  _eSortables = [];
+  document.getElementById('eGalleryContainer').classList.remove('e-is-editing');
+  document.getElementById('eEditModeBar').style.display = 'none';
+  document.getElementById('eArrangeModeBtn').style.display = '';
+  document.getElementById('newEasterBtn').style.display = '';
+}
 </script>
 
 {% endblock %}

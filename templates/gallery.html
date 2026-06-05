@@ -25,7 +25,10 @@
       <p class="c-hero-sub">MT, 개강총회, 종강파티 등 카르텔의 순간들을 담았습니다.</p>
     </div>
     {% if is_privileged %}
-    <button class="gl-add-btn" id="newGalleryBtn">+ 갤러리 추가</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="gl-add-btn" id="newGalleryBtn">+ 갤러리 추가</button>
+      <button class="gl-arrange-btn" id="arrangeModeBtn" onclick="enterArrangeMode()">⠿ 배치 편집</button>
+    </div>
     {% endif %}
   </div>
 </div>
@@ -115,6 +118,18 @@
       {% endfor %}
     </div>
 
+    {# ── 배치 편집 모드 바 ── #}
+    {% if is_privileged %}
+    <div id="editModeBar">
+      <span class="em-title">✏️ 배치 편집 모드</span>
+      <span class="em-hint">섹션을 드래그해서 순서를 바꾸세요</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button id="emSaveBtn" class="btn btn-primary btn-sm" onclick="exitArrangeMode(true)">💾 저장</button>
+        <button class="btn btn-outline btn-sm" onclick="exitArrangeMode(false)">취소</button>
+      </div>
+    </div>
+    {% endif %}
+
     {# ── 연도별 섹션 ── #}
     <div id="galleryContainer">
       {% for year in sorted_years %}
@@ -134,11 +149,12 @@
           {% for post in year_posts %}
           {% set imgs = post.images | fromjson %}
           {% set img_count = imgs | length %}
-          <section class="gl-event-section" data-type="{{ post.event_type }}">
+          <section class="gl-event-section" data-type="{{ post.event_type }}" data-id="{{ post.id }}">
 
             {# 섹션 헤더 #}
             <div class="gl-event-header">
               <div class="gl-event-header-left">
+                <span class="gl-drag-handle" title="드래그하여 순서 변경">⠿</span>
                 <span class="gl-event-type-badge">{{ post.event_type }}</span>
                 <h2 class="gl-event-title">{{ post.title }}</h2>
               </div>
@@ -146,6 +162,7 @@
                 {% if post.event_date %}
                   <span class="gl-event-date">{{ post.event_date.strftime('%Y.%m.%d') }}</span>
                 {% endif %}
+                <button type="button" class="gl-section-toggle" onclick="toggleGallerySection(this)" aria-expanded="true">접기</button>
                 {% if is_privileged %}
                   <button type="button" class="gl-edit-btn" onclick="toggleEditForm({{ post.id }})">수정</button>
                   <form method="post" action="/gallery/{{ post.id }}/delete"
@@ -244,6 +261,8 @@
             </div>
             {% endif %}
 
+            {# ── 접기 가능한 섹션 본문 ── #}
+            <div class="gl-section-body">
             {# 설명 / 꾸미기 HTML #}
             {% if post.description %}
             <div class="gl-desc-html">
@@ -266,6 +285,7 @@
             {% else %}
             <div class="gl-no-photo">📷 사진이 없습니다</div>
             {% endif %}
+            </div>{# /gl-section-body #}
 
           </section>
           {% endfor %}
@@ -785,10 +805,111 @@
   text-shadow: 0 1px 3px rgba(0,0,0,0.65);
   user-select: none;
 }
+
+/* ── 소제목 접기 버튼 ── */
+.gl-section-toggle {
+  font-size: .73rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.gl-section-toggle:hover {
+  border-color: var(--cartel-blue);
+  color: var(--cartel-blue);
+  background: rgba(59,130,246,0.06);
+}
+.gl-section-body { overflow: hidden; }
+
+/* ── 배치 편집 버튼 (히어로) ── */
+.gl-arrange-btn {
+  font-family: var(--font-display);
+  font-size: .88rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  background: rgba(255,255,255,0.09);
+  border: 1.5px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.gl-arrange-btn:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.45);
+  color: #fff;
+}
+
+/* ── 배치 편집 모드 바 ── */
+#editModeBar {
+  display: none;
+  position: sticky;
+  top: 64px;
+  z-index: 200;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 2px solid var(--cartel-blue);
+  border-radius: 14px;
+  padding: 12px 20px;
+  margin: 0 0 20px;
+  box-shadow: 0 4px 24px rgba(59,130,246,0.18);
+}
+#editModeBar .em-title { font-weight: 700; color: var(--cartel-blue); }
+#editModeBar .em-hint  { color: var(--muted); font-size: .82rem; }
+
+/* ── 드래그 핸들 ── */
+.gl-drag-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  font-size: 1.25rem;
+  color: var(--muted);
+  padding: 0 2px;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+  transition: color .15s;
+  touch-action: none;
+}
+.gl-drag-handle:active { cursor: grabbing; }
+.is-editing .gl-drag-handle { display: flex; }
+.is-editing .gl-drag-handle:hover { color: var(--cartel-blue); }
+
+/* ── 편집 모드 섹션 스타일 ── */
+.is-editing .gl-event-section {
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 10px !important;
+  transition: border-color .15s, background .15s;
+  cursor: default;
+}
+.is-editing .gl-event-section:hover {
+  border-color: rgba(59,130,246,0.3);
+  background: rgba(59,130,246,0.025);
+}
+.gl-drag-ghost {
+  opacity: .45 !important;
+  background: rgba(59,130,246,0.06) !important;
+  border: 2px dashed var(--cartel-blue) !important;
+  border-radius: 10px !important;
+}
+.gl-drag-chosen {
+  box-shadow: 0 6px 24px rgba(59,130,246,0.18) !important;
+}
 </style>
 
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 if (typeof ImageResize !== 'undefined') Quill.register('modules/imageResize', ImageResize);
 </script>
@@ -1052,6 +1173,76 @@ document.addEventListener('contextmenu', function(e) {
   }
 });
 {% endif %}
+
+// ── 소제목 접기/펼치기 ──
+function toggleGallerySection(btn) {
+  var body = btn.closest('.gl-event-section').querySelector('.gl-section-body');
+  var open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  btn.textContent = open ? '펼치기' : '접기';
+  body.style.display = open ? 'none' : '';
+}
+
+// ── 배치 편집 모드 ──
+var _sortables = [];
+
+function enterArrangeMode() {
+  document.getElementById('galleryContainer').classList.add('is-editing');
+  document.getElementById('editModeBar').style.display = 'flex';
+  document.getElementById('arrangeModeBtn').style.display = 'none';
+  document.getElementById('newGalleryBtn').style.display = 'none';
+  // 접혀 있는 섹션 모두 펼치기 (드래그 UX)
+  document.querySelectorAll('.gl-section-body[style*="none"]').forEach(function(b) {
+    b.style.display = '';
+    var btn = b.closest('.gl-event-section').querySelector('.gl-section-toggle');
+    if (btn) { btn.setAttribute('aria-expanded','true'); btn.textContent = '접기'; }
+  });
+  // 모든 연도 펼치기
+  document.querySelectorAll('.gl-year-body[style*="none"]').forEach(function(b) {
+    b.style.display = '';
+    var btn = b.previousElementSibling;
+    if (btn) { btn.setAttribute('aria-expanded','true'); btn.querySelector('.gl-year-arrow').textContent = '▲'; }
+  });
+  // SortableJS — 연도 간 이동 허용
+  document.querySelectorAll('.gl-year-body').forEach(function(body) {
+    _sortables.push(Sortable.create(body, {
+      group: 'gallery',
+      animation: 160,
+      handle: '.gl-drag-handle',
+      ghostClass: 'gl-drag-ghost',
+      chosenClass: 'gl-drag-chosen',
+    }));
+  });
+}
+
+function exitArrangeMode(save) {
+  if (save) {
+    var order = [];
+    document.querySelectorAll('#galleryContainer .gl-event-section').forEach(function(sec) {
+      var id = parseInt(sec.dataset.id);
+      if (id) order.push(id);
+    });
+    var saveBtn = document.getElementById('emSaveBtn');
+    saveBtn.textContent = '저장 중…'; saveBtn.disabled = true;
+    fetch('/gallery/reorder', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({order: order})
+    }).then(function(r) {
+      if (r.ok) { location.reload(); }
+      else { saveBtn.textContent = '💾 저장'; saveBtn.disabled = false; alert('저장 실패'); }
+    }).catch(function() {
+      saveBtn.textContent = '💾 저장'; saveBtn.disabled = false; alert('네트워크 오류');
+    });
+    return;
+  }
+  _sortables.forEach(function(s) { s.destroy(); });
+  _sortables = [];
+  document.getElementById('galleryContainer').classList.remove('is-editing');
+  document.getElementById('editModeBar').style.display = 'none';
+  document.getElementById('arrangeModeBtn').style.display = '';
+  document.getElementById('newGalleryBtn').style.display = '';
+}
 </script>
 
 {% endblock %}
