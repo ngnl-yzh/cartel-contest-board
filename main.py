@@ -241,6 +241,7 @@ IS_PRODUCTION = os.getenv("RAILWAY_ENVIRONMENT") is not None or os.getenv("PRODU
 # ── CSRF 기본 구현 (함수 준비, samesite=lax 이미 적용 중) ─────────────────────
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 CSRF_SECRET = os.getenv("CSRF_SECRET", SECRET_KEY + "_csrf")
+_EASTER_COOKIE = hmac.new((SECRET_KEY + ":easter").encode(), b"cartel-easter", hashlib.sha256).hexdigest()[:32]
 
 
 def _generate_csrf(session_token: str) -> str:
@@ -1553,8 +1554,18 @@ async def gallery_new(
 
 # ── 이스터에그 갤러리 (/gallery/c) ─────────────────────────────────────────────
 
+@app.get("/gallery/c/enter")
+async def easter_gallery_enter(request: Request):
+    """기믹(hidden C 링크) 클릭 시 쿠키를 심고 이스터에그 페이지로 이동."""
+    response = RedirectResponse(url="/gallery/c", status_code=302)
+    response.set_cookie("_ce", _EASTER_COOKIE, httponly=True, samesite="lax", max_age=86400 * 365)
+    return response
+
+
 @app.get("/gallery/c", response_class=HTMLResponse)
 async def easter_gallery_page(request: Request, db: Session = Depends(get_db)):
+    if request.cookies.get("_ce") != _EASTER_COOKIE:
+        return RedirectResponse(url="/gallery", status_code=302)
     posts = db.query(GalleryPost).filter(
         GalleryPost.is_easter.is_(True)
     ).order_by(GalleryPost.event_date.desc().nullslast(), GalleryPost.created_at.desc()).all()
