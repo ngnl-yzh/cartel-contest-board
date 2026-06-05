@@ -744,33 +744,39 @@ document.addEventListener('keydown', function(e) {
 // ── 수정 폼 토글 + Quill 초기화 ──
 var _eEditQuills = {};
 function eToggleEditForm(postId) {
-  var form = document.getElementById('eEditForm-' + postId);
-  if (!form) return;
-  var hidden = form.style.display === 'none' || form.style.display === '';
-  form.style.display = hidden ? 'block' : 'none';
-  if (hidden) {
-    form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  var formWrap = document.getElementById('eEditForm-' + postId);
+  if (!formWrap) return;
+  var isHidden = formWrap.style.display === 'none' || formWrap.style.display === '';
+  formWrap.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    formWrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
     setTimeout(function() {
-      if (!_eEditQuills[postId]) {
-        var container = document.getElementById('eEditQuill-' + postId);
-        var hiddenInp = document.getElementById('eEditDesc-' + postId);
-        if (!container || !hiddenInp) return;
-        var mods = {
-          toolbar: { container: _QUILL_TOOLBAR,
-                     handlers: { image: function() { _galleryImageHandler(_eEditQuills[postId]); } } }
-        };
-        if (typeof ImageResize !== 'undefined') mods.imageResize = { modules:['Resize','DisplaySize'] };
-        var q = new Quill(container, { theme:'snow', placeholder:'설명을 입력하세요', modules: mods });
-        if (hiddenInp.dataset.initial && hiddenInp.dataset.initial.trim()) {
-          q.clipboard.dangerouslyPasteHTML(hiddenInp.dataset.initial);
-        }
-        q.on('text-change', function() { hiddenInp.value = q.root.innerHTML; });
-        _eEditQuills[postId] = q;
-        // 폼 제출 전 동기화
-        form.querySelector('form').addEventListener('submit', function() {
-          hiddenInp.value = q.root.innerHTML;
-        });
+      if (_eEditQuills[postId]) return;  // 이미 초기화됨
+      var container = document.getElementById('eEditQuill-' + postId);
+      var hiddenInp = document.getElementById('eEditDesc-' + postId);
+      if (!container || !hiddenInp) return;
+      var mods = {
+        toolbar: { container: _QUILL_TOOLBAR,
+                   handlers: { image: function() { _galleryImageHandler(_eEditQuills[postId]); } } }
+      };
+      if (typeof ImageResize !== 'undefined') mods.imageResize = { modules:['Resize','DisplaySize'] };
+      var q = new Quill(container, { theme:'snow', placeholder:'설명을 입력하세요', modules: mods });
+
+      // 기존 내용 로드 후 즉시 hidden input에 동기화
+      if (hiddenInp.dataset.initial && hiddenInp.dataset.initial.trim()) {
+        q.clipboard.dangerouslyPasteHTML(hiddenInp.dataset.initial);
       }
+      // dangerouslyPasteHTML 은 text-change를 트리거하지 않을 수 있으므로 강제 동기화
+      hiddenInp.value = q.root.innerHTML;
+
+      // 이후 편집 시 실시간 동기화
+      q.on('text-change', function() { hiddenInp.value = q.root.innerHTML; });
+      _eEditQuills[postId] = q;
+
+      // 제출 직전 한 번 더 강제 동기화 (안전장치)
+      formWrap.querySelector('form').addEventListener('submit', function() {
+        hiddenInp.value = q.root.innerHTML;
+      });
     }, 50);
   }
 }
