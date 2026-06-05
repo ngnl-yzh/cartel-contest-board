@@ -4,20 +4,16 @@
 {% block content %}
 <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css">
 <style>
-/* ── 페이지 전체 다크 보라 배경 ── */
-body { background:#0d0d14; }
-
-/* ── 에디터 ── */
-.gallery-quill-wrap .ql-toolbar { border-radius:8px 8px 0 0; border-color:rgba(167,139,250,.4); background:rgba(124,58,237,.1); }
-.gallery-quill-wrap .ql-container { border-radius:0 0 8px 8px; border-color:rgba(167,139,250,.4); min-height:100px; }
-.gallery-quill-wrap .ql-editor { color:#e2d9f3; min-height:80px; }
-.gallery-quill-wrap .ql-editor.ql-blank::before { color:rgba(196,181,253,.5); }
+/* ── 에디터 (사이트 기본 테마) ── */
+.gallery-quill-wrap .ql-toolbar { border-radius:8px 8px 0 0; border-color:var(--line); background:var(--surface); }
+.gallery-quill-wrap .ql-container { border-radius:0 0 8px 8px; border-color:var(--line); min-height:100px; }
+.gallery-quill-wrap .ql-editor { min-height:80px; }
 .gallery-quill-wrap .ql-editor img { width:260px; max-width:100%; height:auto; border-radius:6px; cursor:nw-resize; }
-.gl-desc-html .ql-editor { padding:0; border:none; font-size:.87rem; color:#e2d9f3; }
+.gl-desc-html .ql-editor { padding:0; border:none; font-size:.87rem; color:var(--text); }
 .gl-desc-html .ql-editor p { margin:.25em 0; }
-.gl-desc-html .ql-editor h1,.gl-desc-html .ql-editor h2,.gl-desc-html .ql-editor h3 { color:#f0ebff; }
-.gl-desc-html .ql-editor a { color:#a78bfa; }
-.gl-desc-html .ql-editor blockquote { border-left:3px solid rgba(124,58,237,.5); padding-left:10px; color:rgba(196,181,253,.75); margin:.5em 0; }
+.gl-desc-html .ql-editor h1,.gl-desc-html .ql-editor h2,.gl-desc-html .ql-editor h3 { color:var(--text); }
+.gl-desc-html .ql-editor a { color:var(--cartel-blue); }
+.gl-desc-html .ql-editor blockquote { border-left:3px solid var(--line); padding-left:10px; color:var(--muted); margin:.5em 0; }
 .gl-desc-html .ql-editor img { max-width:min(100%,320px); height:auto; border-radius:6px; margin:.4em 4px; vertical-align:top; }
 
 /* ── 이스터 모자이크 ── */
@@ -25,7 +21,7 @@ body { background:#0d0d14; }
 .easter-mosaic .gl-mosaic-item { max-height:160px; min-height:80px; }
 .easter-mosaic .gl-mosaic-1 .gl-mosaic-item { aspect-ratio:3/2; }
 
-/* ── 모자이크 공통 (gallery.html과 동일, 여기서 재정의) ── */
+/* ── 모자이크 공통 ── */
 .gl-mosaic { display:grid; gap:6px; border-radius:14px; overflow:hidden; }
 .gl-mosaic-1 { grid-template-columns:1fr; }
 .gl-mosaic-1 .gl-mosaic-item { aspect-ratio:16/7; }
@@ -40,155 +36,96 @@ body { background:#0d0d14; }
 .gl-mosaic-5,.gl-mosaic-6 { grid-template-columns:3fr 2fr; grid-template-rows:repeat(2,1fr); }
 .gl-mosaic-5 .gl-mosaic-item:first-child,.gl-mosaic-6 .gl-mosaic-item:first-child { grid-row:span 2; aspect-ratio:unset; }
 .gl-mosaic-5 .gl-mosaic-item,.gl-mosaic-6 .gl-mosaic-item { aspect-ratio:4/3; }
-.gl-mosaic-item { position:relative; overflow:hidden; cursor:pointer; background:#1a0a2e; min-height:80px; }
+.gl-mosaic-item { position:relative; overflow:hidden; cursor:pointer; background:#e2e8f0; min-height:80px; }
 .gl-mosaic-item img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .35s ease; }
 .gl-mosaic-item:hover img { transform:scale(1.05); }
 
 /* ── 필터 탭 ── */
-.gl-filter-tabs { display:flex; gap:8px; flex-wrap:wrap; margin:28px 0 32px; border-bottom:2px solid rgba(124,58,237,.3); padding-bottom:12px; }
+.gl-filter-tabs { display:flex; gap:8px; flex-wrap:wrap; margin:28px 0 32px; border-bottom:2px solid var(--line); padding-bottom:12px; }
 .gl-tab {
-  font-family:var(--font-display);
-  font-size:.82rem; font-weight:700; padding:6px 18px;
-  border:1.5px solid rgba(124,58,237,.35);
-  border-radius:999px;
-  background:rgba(124,58,237,.08);
-  color:rgba(167,139,250,.8);
-  cursor:pointer;
-  transition:all .18s;
+  font-family:var(--font-display); font-size:.85rem; font-weight:600; padding:7px 18px;
+  border:1.5px solid var(--line); border-radius:8px;
+  background:var(--surface); color:var(--muted);
+  cursor:pointer; transition:all .15s;
 }
-.gl-tab.is-active,
-.gl-tab:hover {
-  border-color:#a78bfa;
-  color:#fff;
-  background:linear-gradient(135deg,rgba(124,58,237,.5),rgba(91,33,182,.6));
-  box-shadow:0 2px 14px rgba(124,58,237,.35);
+.gl-tab.is-active,.gl-tab:hover {
+  border-color:var(--cartel-blue); color:var(--cartel-blue);
+  background:rgba(59,130,246,.07);
 }
 
 /* ── 연도 토글 버튼 ── */
 .gl-year-toggle {
   display:flex; align-items:center; gap:10px; width:100%;
-  background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(91,33,182,.12));
-  border:1.5px solid rgba(124,58,237,.4);
+  background:var(--surface); border:2px solid var(--line);
   border-radius:12px; padding:14px 20px; cursor:pointer;
   text-align:left; margin-bottom:0;
-  transition:border-color .15s, background .15s, box-shadow .15s;
+  transition:border-color .15s, background .15s;
 }
-.gl-year-toggle:hover {
-  border-color:#a78bfa;
-  background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(91,33,182,.2));
-  box-shadow:0 4px 20px rgba(124,58,237,.2);
-}
+.gl-year-toggle:hover { border-color:var(--cartel-blue); background:rgba(59,130,246,.04); }
 .gl-year-toggle[aria-expanded="true"] { border-bottom-left-radius:0; border-bottom-right-radius:0; border-bottom-color:transparent; }
-.gl-year-label { font-family:var(--font-display); font-size:1.05rem; font-weight:800; color:#e2d9f3; letter-spacing:-.01em; }
-.gl-year-count { font-size:.75rem; font-weight:700; color:rgba(167,139,250,.8); background:rgba(124,58,237,.25); border:1px solid rgba(167,139,250,.25); border-radius:999px; padding:2px 10px; }
-.gl-year-arrow { margin-left:auto; font-size:.75rem; color:rgba(167,139,250,.7); }
-.gl-year-section { margin-bottom:16px; }
-.gl-year-body { border:1.5px solid rgba(124,58,237,.3); border-top:none; border-radius:0 0 12px 12px; padding:24px 20px 8px; margin-bottom:0; }
+.gl-year-label { font-family:var(--font-display); font-size:1.05rem; font-weight:800; color:var(--text); letter-spacing:-.01em; }
+.gl-year-count { font-size:.78rem; font-weight:600; color:var(--muted); background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:2px 10px; }
+.gl-year-arrow { margin-left:auto; font-size:.75rem; color:var(--muted); }
+.gl-year-section { margin-bottom:12px; }
+.gl-year-body { border:2px solid var(--line); border-top:none; border-radius:0 0 12px 12px; padding:24px 20px 8px; margin-bottom:24px; }
 
 /* ── 이벤트 섹션 ── */
-.gl-event-section { margin-bottom:40px; }
+.gl-event-section { margin-bottom:48px; }
 .gl-event-header {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   margin-bottom:14px; padding-bottom:12px;
-  border-bottom:1.5px solid rgba(124,58,237,.3); flex-wrap:wrap;
+  border-bottom:2px solid var(--line); flex-wrap:wrap;
 }
 .gl-event-header-left { display:flex; align-items:center; gap:10px; }
-.gl-event-type-badge {
-  font-size:.72rem; font-weight:700;
-  background:linear-gradient(135deg,#7c3aed,#5b21b6);
-  color:#fff; padding:4px 12px; border-radius:999px;
-  letter-spacing:.04em; box-shadow:0 2px 8px rgba(124,58,237,.4);
-}
-.gl-event-title { font-family:var(--font-display); font-size:1.1rem; font-weight:700; color:#e2d9f3; margin:0; }
-.gl-event-header-right { display:flex; align-items:center; gap:8px; }
-.gl-event-date { font-size:.8rem; color:rgba(167,139,250,.7); }
+.gl-event-type-badge { font-size:.72rem; font-weight:700; background:var(--cartel-blue); color:#fff; padding:3px 10px; border-radius:999px; letter-spacing:.03em; }
+.gl-event-title { font-family:var(--font-display); font-size:1.22rem; font-weight:700; color:var(--text); margin:0; }
+.gl-event-header-right { display:flex; align-items:center; gap:10px; }
+.gl-event-date { font-size:.82rem; color:var(--muted); }
 
-/* ── 소제목 접기 버튼 (이스터 전용 스타일) ── */
+/* ── 소제목 접기 버튼 ── */
 .easter-section-toggle {
   display:inline-flex; align-items:center; gap:5px;
-  font-size:.72rem; font-weight:600;
-  color:rgba(167,139,250,.9);
-  background:rgba(124,58,237,.15);
-  border:1px solid rgba(124,58,237,.35);
-  border-radius:999px;
-  cursor:pointer; padding:3px 11px;
-  transition:all .18s;
+  font-size:.75rem; font-weight:600; color:var(--muted);
+  background:var(--surface); border:1.5px solid var(--line);
+  border-radius:999px; cursor:pointer; padding:3px 11px; transition:all .15s;
 }
-.easter-section-toggle:hover {
-  background:rgba(124,58,237,.3);
-  border-color:#a78bfa;
-  color:#e2d9f3;
-  box-shadow:0 2px 10px rgba(124,58,237,.25);
-}
+.easter-section-toggle:hover { border-color:var(--cartel-blue); color:var(--cartel-blue); background:rgba(59,130,246,.06); }
 .easter-section-body { overflow:hidden; }
 
-/* ── + 추가 버튼 ── */
+/* ── 버튼들 (사이트 기본 스타일 활용) ── */
 .e-add-btn {
   display:inline-flex; align-items:center; gap:7px;
   font-family:var(--font-display); font-weight:700; font-size:.88rem;
-  color:#fff;
-  background:linear-gradient(135deg,#7c3aed,#5b21b6);
-  border:none; border-radius:10px;
-  padding:10px 22px; cursor:pointer; white-space:nowrap;
-  box-shadow:0 4px 20px rgba(124,58,237,.45);
-  transition:all .2s;
+  color:#fff; background:var(--cartel-blue);
+  border:none; border-radius:8px; padding:10px 22px; cursor:pointer;
+  white-space:nowrap; transition:all .2s;
 }
-.e-add-btn:hover {
-  background:linear-gradient(135deg,#8b5cf6,#6d28d9);
-  box-shadow:0 6px 28px rgba(124,58,237,.65);
-  transform:translateY(-1px);
-}
+.e-add-btn:hover { filter:brightness(1.12); transform:translateY(-1px); }
 .e-add-btn:active { transform:translateY(0); }
 
-/* ── 등록 버튼 ── */
 .e-submit-btn {
   display:inline-flex; align-items:center; gap:6px;
   font-family:var(--font-display); font-weight:700; font-size:.88rem;
-  color:#fff;
-  background:linear-gradient(135deg,#7c3aed,#5b21b6);
-  border:none; border-radius:10px;
-  padding:10px 26px; cursor:pointer;
-  box-shadow:0 4px 18px rgba(124,58,237,.4);
-  transition:all .2s;
+  color:#fff; background:var(--cartel-blue);
+  border:none; border-radius:8px; padding:10px 26px; cursor:pointer; transition:all .2s;
 }
-.e-submit-btn:hover {
-  background:linear-gradient(135deg,#8b5cf6,#6d28d9);
-  box-shadow:0 6px 24px rgba(124,58,237,.6);
-  transform:translateY(-1px);
-}
+.e-submit-btn:hover { filter:brightness(1.12); transform:translateY(-1px); }
 
-/* ── 취소 버튼 ── */
 .e-cancel-btn {
   display:inline-flex; align-items:center;
   font-family:var(--font-display); font-weight:600; font-size:.88rem;
-  color:rgba(196,181,253,.85);
-  background:rgba(124,58,237,.1);
-  border:1.5px solid rgba(124,58,237,.35);
-  border-radius:10px; padding:10px 20px; cursor:pointer;
-  transition:all .18s;
+  color:var(--muted); background:var(--surface);
+  border:1.5px solid var(--line); border-radius:8px; padding:10px 20px; cursor:pointer; transition:all .15s;
 }
-.e-cancel-btn:hover {
-  background:rgba(124,58,237,.2);
-  border-color:rgba(167,139,250,.6);
-  color:#e2d9f3;
-}
+.e-cancel-btn:hover { border-color:var(--cartel-blue); color:var(--cartel-blue); }
 
-/* ── 삭제 버튼 ── */
 .e-delete-btn {
   display:inline-flex; align-items:center;
-  font-size:.72rem; font-weight:700;
-  color:rgba(252,165,165,.85);
-  background:rgba(239,68,68,.08);
-  border:1px solid rgba(239,68,68,.3);
-  border-radius:999px; padding:3px 11px; cursor:pointer;
-  transition:all .18s;
+  font-size:.75rem; font-weight:600; color:var(--danger, #ef4444);
+  background:none; border:1px solid rgba(239,68,68,.3);
+  border-radius:6px; padding:3px 9px; cursor:pointer; transition:all .15s;
 }
-.e-delete-btn:hover {
-  background:rgba(239,68,68,.18);
-  border-color:rgba(239,68,68,.55);
-  color:#fca5a5;
-  box-shadow:0 2px 10px rgba(239,68,68,.2);
-}
+.e-delete-btn:hover { background:rgba(239,68,68,.06); border-color:rgba(239,68,68,.55); }
 
 /* ── 라이트박스 ── */
 .c-lightbox { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.92); align-items:center; justify-content:center; }
@@ -198,58 +135,90 @@ body { background:#0d0d14; }
   position:absolute; top:20px; right:24px;
   background:rgba(255,255,255,.12); border:none; color:#fff;
   font-size:1.4rem; width:40px; height:40px; border-radius:50%;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  transition:background .15s;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;
 }
 .c-lightbox-close:hover { background:rgba(255,255,255,.25); }
 .c-lightbox-prev, .c-lightbox-next {
   position:absolute; top:50%; transform:translateY(-50%);
   background:rgba(255,255,255,.12); border:none; color:#fff;
   font-size:2rem; font-weight:300; width:48px; height:48px; border-radius:50%;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  transition:background .15s;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;
 }
 .c-lightbox-prev { left:20px; }
 .c-lightbox-next { right:20px; }
 .c-lightbox-prev:hover,.c-lightbox-next:hover { background:rgba(255,255,255,.25); }
-.gl-no-photo { text-align:center; padding:30px; color:rgba(167,139,250,.5); font-size:.88rem; background:rgba(124,58,237,.06); border-radius:10px; border:1px dashed rgba(124,58,237,.25); }
+.gl-no-photo { text-align:center; padding:40px; color:var(--muted); font-size:.88rem; background:var(--surface); border-radius:12px; }
 
 /* ── 배치 편집 버튼 ── */
 .e-arrange-btn {
-  font-family:var(--font-display); font-size:.85rem; font-weight:600;
-  padding:9px 17px;
-  background:rgba(124,58,237,.15);
-  border:1.5px solid rgba(124,58,237,.4);
-  border-radius:10px; color:rgba(196,181,253,.9);
-  cursor:pointer; white-space:nowrap; transition:all .18s;
+  font-family:var(--font-display); font-size:.88rem; font-weight:600;
+  padding:10px 18px; background:rgba(255,255,255,.09); border:1.5px solid rgba(255,255,255,.25);
+  border-radius:8px; color:rgba(255,255,255,.85); cursor:pointer; white-space:nowrap; transition:all .15s;
 }
-.e-arrange-btn:hover {
-  background:rgba(124,58,237,.28); border-color:#a78bfa; color:#e2d9f3;
-}
+.e-arrange-btn:hover { background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.45); color:#fff; }
 
 /* ── 편집 모드 바 ── */
 #eEditModeBar {
   display:none; align-items:center; gap:12px;
   position:sticky; top:64px; z-index:200;
-  background:rgba(26,10,46,.96);
-  border:1.5px solid #a78bfa;
-  border-radius:14px; padding:12px 20px; margin:16px 0;
-  box-shadow:0 4px 24px rgba(124,58,237,.35);
-  backdrop-filter:blur(8px);
+  background:#fff; border:2px solid var(--cartel-blue);
+  border-radius:14px; padding:12px 20px; margin:0 0 20px;
+  box-shadow:0 4px 24px rgba(59,130,246,.18);
 }
-#eEditModeBar .em-title { font-weight:700; color:#c4b5fd; }
-#eEditModeBar .em-hint  { color:rgba(167,139,250,.7); font-size:.82rem; }
+#eEditModeBar .em-title { font-weight:700; color:var(--cartel-blue); }
+#eEditModeBar .em-hint  { color:var(--muted); font-size:.82rem; }
+
+/* ── 장난스러운 이모지 스트립 ── */
+.easter-emoji-strip {
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+  padding:10px 0;
+  overflow:hidden;
+}
+.easter-emoji-track {
+  display:flex; gap:28px; width:max-content;
+  animation:easter-scroll 22s linear infinite;
+}
+.easter-emoji-track span { font-size:1.5rem; display:inline-block; animation:easter-wobble 1.4s ease-in-out infinite alternate; }
+.easter-emoji-track span:nth-child(2n)  { animation-delay:.2s; }
+.easter-emoji-track span:nth-child(3n)  { animation-delay:.4s; }
+.easter-emoji-track span:nth-child(4n)  { animation-delay:.6s; }
+.easter-emoji-track span:nth-child(5n)  { animation-delay:.8s; }
+.easter-emoji-track span:nth-child(6n)  { animation-delay:1s;  }
+.easter-emoji-track span:nth-child(7n)  { animation-delay:1.2s;}
+@keyframes easter-scroll {
+  0%   { transform:translateX(0); }
+  100% { transform:translateX(-50%); }
+}
+@keyframes easter-wobble {
+  from { transform:rotate(-8deg) translateY(0); }
+  to   { transform:rotate(8deg)  translateY(-5px); }
+}
+
+/* ── 히어로 장식 뱃지 ── */
+.easter-secret-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:.72rem; font-weight:700; letter-spacing:.06em;
+  background:rgba(255,255,255,.18); color:rgba(255,255,255,.9);
+  border:1px solid rgba(255,255,255,.28); border-radius:999px;
+  padding:4px 12px; margin-bottom:10px;
+  animation:easter-pulse 2.4s ease-in-out infinite;
+}
+@keyframes easter-pulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(255,255,255,.3); }
+  50%      { box-shadow:0 0 0 6px rgba(255,255,255,0); }
+}
 
 /* ── 드래그 핸들 ── */
 .e-drag-handle {
   display:none; align-items:center; justify-content:center;
-  cursor:grab; font-size:1.2rem; color:rgba(124,58,237,.5);
+  cursor:grab; font-size:1.2rem; color:var(--muted);
   padding:0 4px; line-height:1; user-select:none; flex-shrink:0;
   transition:color .15s; touch-action:none;
 }
 .e-drag-handle:active { cursor:grabbing; }
 .e-is-editing .e-drag-handle { display:flex; }
-.e-is-editing .e-drag-handle:hover { color:#a78bfa; }
+.e-is-editing .e-drag-handle:hover { color:var(--cartel-blue); }
 
 /* ── 편집 모드 섹션 강조 ── */
 .e-is-editing .gl-event-section {
@@ -258,25 +227,38 @@ body { background:#0d0d14; }
   transition:border-color .15s, background .15s;
 }
 .e-is-editing .gl-event-section:hover {
-  border-color:rgba(124,58,237,.4);
-  background:rgba(124,58,237,.06);
+  border-color:rgba(59,130,246,.3);
+  background:rgba(59,130,246,.025);
 }
 .e-drag-ghost {
   opacity:.4 !important;
-  background:rgba(124,58,237,.1) !important;
-  border:2px dashed #a78bfa !important;
+  background:rgba(59,130,246,.06) !important;
+  border:2px dashed var(--cartel-blue) !important;
   border-radius:10px !important;
 }
-.e-drag-chosen { box-shadow:0 6px 24px rgba(124,58,237,.3) !important; }
+.e-drag-chosen { box-shadow:0 6px 24px rgba(59,130,246,.18) !important; }
 </style>
 
+{# ── 장난스러운 이모지 스트립 ── #}
+<div class="easter-emoji-strip">
+  <div class="easter-emoji-track">
+    <span>🌝</span><span>👀</span><span>🕵️</span><span>🔍</span><span>🥚</span>
+    <span>🤫</span><span>😏</span><span>🐣</span><span>🎯</span><span>💀</span>
+    <span>🫣</span><span>🙈</span><span>👁️</span><span>🎪</span><span>🃏</span>
+    <span>🌝</span><span>👀</span><span>🕵️</span><span>🔍</span><span>🥚</span>
+    <span>🤫</span><span>😏</span><span>🐣</span><span>🎯</span><span>💀</span>
+    <span>🫣</span><span>🙈</span><span>👁️</span><span>🎪</span><span>🃏</span>
+  </div>
+</div>
+
 {# ── 히어로 ── #}
-<div class="c-hero" style="padding:36px 0 28px;background:linear-gradient(135deg,#0d0d0d 0%,#1a0a2e 50%,#0d0d0d 100%)">
+<div class="c-hero" style="padding:36px 0 28px">
   <div class="c-hero-inner" style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
     <div>
-      <p class="c-hero-eyebrow" style="opacity:.5;letter-spacing:.3em">C A R T E L</p>
-      <h1 class="c-hero-title" style="font-size:2rem">🌝 이스터에그 갤러리</h1>
-      <p class="c-hero-sub" style="opacity:.6">여기까지 찾아온 당신, 눈치가 빠르군요.</p>
+      <div class="easter-secret-badge">🔒 SECRET PAGE</div>
+      <p class="c-hero-eyebrow">CARTEL</p>
+      <h1 class="c-hero-title">🌝 이스터에그 갤러리</h1>
+      <p class="c-hero-sub">여기까지 찾아온 당신, 눈치가 빠르군요 👁️</p>
     </div>
     {% if is_admin %}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
