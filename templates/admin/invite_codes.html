@@ -42,12 +42,12 @@
             <input type="number" name="generation" min="1" max="99" placeholder="예: 6">
           </label>
           <label class="field">
-            <span>유효 기간 (일)</span>
-            <input type="number" name="valid_days" min="1" max="365" placeholder="예: 7">
+            <span>유효 기간 (일) <small style="opacity:.6;font-weight:400">← 입력 시 날짜 자동 계산</small></span>
+            <input type="number" name="valid_days" id="validDays" min="1" max="3650" placeholder="예: 7">
           </label>
           <label class="field">
-            <span>만료 일시</span>
-            <input type="datetime-local" name="expires_at">
+            <span>만료 일시 <small style="opacity:.6;font-weight:400">← 입력 시 일수 자동 계산</small></span>
+            <input type="datetime-local" name="expires_at" id="expiresAt">
           </label>
         </div>
         <button type="submit" class="btn btn-primary">발급</button>
@@ -165,6 +165,7 @@
 }
 </style>
 <script>
+// ── 초대 유형 ──
 const inviteType = document.getElementById("inviteType");
 const maxUses = document.getElementById("maxUses");
 function syncInviteType() {
@@ -177,6 +178,44 @@ function syncInviteType() {
 if (inviteType) {
   inviteType.addEventListener("change", syncInviteType);
   syncInviteType();
+}
+
+// ── 유효 기간 ↔ 만료 일시 양방향 연동 ──
+const validDays = document.getElementById("validDays");
+const expiresAt = document.getElementById("expiresAt");
+
+function toDatetimeLocal(date) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// 일수 입력 → 만료 일시 계산
+if (validDays) {
+  validDays.addEventListener("input", function () {
+    const days = parseInt(this.value);
+    if (days > 0) {
+      const exp = new Date();
+      exp.setDate(exp.getDate() + days);
+      exp.setHours(23, 59, 0, 0);
+      expiresAt.value = toDatetimeLocal(exp);
+    } else {
+      expiresAt.value = "";
+    }
+  });
+}
+
+// 만료 일시 입력 → 일수 계산
+if (expiresAt) {
+  expiresAt.addEventListener("change", function () {
+    if (this.value) {
+      const exp = new Date(this.value);
+      const now = new Date();
+      const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+      validDays.value = diffDays > 0 ? diffDays : "";
+    } else {
+      validDays.value = "";
+    }
+  });
 }
 </script>
 {% endblock %}

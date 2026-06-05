@@ -2486,6 +2486,7 @@ async def admin_create_invite_code(
         use_count=0,
         is_active=True,
         generation=parsed_gen,
+        created_at=_now(),
     ))
     db.commit()
     return RedirectResponse(url="/admin/invite-codes", status_code=303)
@@ -2575,6 +2576,7 @@ async def register(
         member_id=member.id,
         activity_name=member.activity_name,
         real_name=member.real_name,
+        used_at=_now(),
     ))
     code_obj.use_count = (code_obj.use_count or 0) + 1
     if code_type == "personal":
