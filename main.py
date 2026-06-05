@@ -1645,6 +1645,57 @@ async def easter_gallery_new(
     return RedirectResponse(url="/gallery/c", status_code=303)
 
 
+@app.post("/gallery/c/{post_id}/edit")
+async def easter_gallery_edit(
+    request: Request,
+    post_id: int,
+    title: str = Form(...),
+    description: str = Form(""),
+    event_type: str = Form("기타"),
+    event_date: Optional[str] = Form(None),
+    delete_images: List[str] = Form(default=[]),
+    add_images: List[UploadFile] = File(default=[]),
+    image_order: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403)
+    post = db.query(GalleryPost).filter(GalleryPost.id == post_id, GalleryPost.is_easter.is_(True)).first()
+    if not post:
+        raise HTTPException(status_code=404)
+    post.title = title.strip()
+    post.description = description.strip()
+    post.event_type = event_type
+    if event_date:
+        try:
+            post.event_date = date.fromisoformat(event_date)
+        except ValueError:
+            pass
+
+    existing = _from_json(post.images or "[]")
+    kept = [img for img in existing if img not in delete_images]
+    for img in add_images:
+        if img and img.filename:
+            ext = Path(img.filename).suffix.lower()
+            if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+                continue
+            data = await img.read()
+            if len(data) > 20 * 1024 * 1024:
+                continue
+            data, ctype = _optimize_image(data)
+            fname = f"{uuid.uuid4().hex}.jpg"
+            _storage_upload(data, fname, ctype)
+            kept.append(fname)
+    if image_order:
+        order_list = [f.strip() for f in image_order.split(",") if f.strip()]
+        kept_set = set(kept)
+        ordered = [f for f in order_list if f in kept_set]
+        kept = ordered + [f for f in kept if f not in set(ordered)]
+    post.images = json.dumps(kept, ensure_ascii=False)
+    db.commit()
+    return RedirectResponse(url="/gallery/c", status_code=303)
+
+
 @app.post("/gallery/c/{post_id}/delete")
 async def easter_gallery_delete(request: Request, post_id: int, db: Session = Depends(get_db)):
     if not _is_admin(request):

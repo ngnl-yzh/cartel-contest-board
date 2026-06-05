@@ -149,6 +149,58 @@
 .c-lightbox-prev:hover,.c-lightbox-next:hover { background:rgba(255,255,255,.25); }
 .gl-no-photo { text-align:center; padding:40px; color:var(--muted); font-size:.88rem; background:var(--surface); border-radius:12px; }
 
+/* ── 등록/수정 폼 패널 ── */
+.e-form-panel {
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+  padding:28px 0;
+}
+.e-edit-form {
+  background:var(--surface);
+  border:1.5px solid var(--line);
+  border-radius:12px;
+  padding:20px;
+  margin-bottom:18px;
+}
+.e-edit-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:12px;
+}
+
+/* ── 수정 버튼 ── */
+.e-edit-btn {
+  font-size:.75rem; font-weight:600; color:var(--cartel-blue);
+  background:none; border:1px solid rgba(59,130,246,.35);
+  border-radius:6px; padding:3px 9px; cursor:pointer; transition:background .15s;
+}
+.e-edit-btn:hover { background:rgba(59,130,246,.07); }
+
+/* ── 사진 수정 목록 ── */
+.e-edit-list { display:flex; flex-direction:column; gap:6px; }
+.e-edit-row {
+  display:flex; align-items:center; gap:10px;
+  background:var(--bg); border:1.5px solid var(--line);
+  border-radius:10px; padding:6px 10px; transition:border-color .15s, opacity .15s;
+}
+.e-edit-row.is-deleted { opacity:.38; border-color:#ef4444; background:rgba(239,68,68,.04); }
+.e-edit-row-num { font-size:.78rem; font-weight:700; color:var(--muted); min-width:18px; text-align:center; }
+.e-edit-row-img { width:80px; height:56px; object-fit:cover; border-radius:6px; flex-shrink:0; }
+.e-edit-thumb-badge { font-size:.68rem; font-weight:700; background:var(--cartel-blue); color:#fff; padding:2px 7px; border-radius:999px; white-space:nowrap; flex-shrink:0; }
+.e-edit-row-btns { display:flex; gap:4px; margin-left:auto; flex-shrink:0; }
+.e-order-btn {
+  font-size:.82rem; font-weight:600; background:var(--surface);
+  border:1.5px solid var(--line); border-radius:6px; padding:3px 9px;
+  cursor:pointer; color:var(--text); transition:background .12s, border-color .12s;
+}
+.e-order-btn:hover:not(:disabled) { background:rgba(59,130,246,.08); border-color:var(--cartel-blue); color:var(--cartel-blue); }
+.e-order-btn:disabled { opacity:.35; cursor:default; }
+.e-del-btn {
+  font-size:.82rem; background:var(--surface);
+  border:1.5px solid rgba(239,68,68,.3); border-radius:6px; padding:3px 8px;
+  cursor:pointer; color:#ef4444; transition:background .12s;
+}
+.e-del-btn:hover { background:rgba(239,68,68,.07); }
+.e-edit-row.is-deleted .e-del-btn { background:rgba(239,68,68,.1); border-color:#ef4444; }
+
 /* ── 배치 편집 버튼 ── */
 .e-arrange-btn {
   font-family:var(--font-display); font-size:.88rem; font-weight:600;
@@ -271,17 +323,17 @@
 
 {# ── 추가 폼 (메인 관리자만) ── #}
 {% if is_admin %}
-<div id="newEasterForm" style="display:none;background:#1a0a2e;border-bottom:1px solid rgba(124,58,237,.3);padding:28px 0">
+<div id="newEasterForm" class="e-form-panel" style="display:none">
   <div class="container" style="max-width:680px">
-    <h2 style="font-size:1rem;font-weight:700;margin-bottom:18px;color:#e2d9f3">🌝 새 이스터에그 등록</h2>
+    <h2 style="font-size:1rem;font-weight:700;margin-bottom:18px">🌝 새 이스터에그 등록</h2>
     <form method="post" action="/gallery/c/new" enctype="multipart/form-data">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div style="grid-column:1/-1">
-          <label class="form-label" style="color:#c4b5fd">제목 *</label>
+          <label class="form-label">제목 *</label>
           <input type="text" name="title" class="form-control" placeholder="제목" required>
         </div>
         <div>
-          <label class="form-label" style="color:#c4b5fd">유형</label>
+          <label class="form-label">유형</label>
           <select class="form-control" style="margin-bottom:4px"
                   onchange="onEventType(this, this.parentNode.querySelector('.etype-custom'), null)">
             <option value="MT">MT</option>
@@ -296,30 +348,29 @@
                  placeholder="유형 직접 입력" maxlength="20" value="기타">
         </div>
         <div>
-          <label class="form-label" style="color:#c4b5fd">날짜</label>
+          <label class="form-label">날짜</label>
           <input type="date" name="event_date" class="form-control">
         </div>
         <div style="grid-column:1/-1">
-          <label class="form-label" style="color:#c4b5fd">사진 업로드 (여러 장)</label>
+          <label class="form-label">사진 업로드 (여러 장)</label>
           <input type="file" name="images" class="form-control" multiple accept="image/*">
         </div>
         <div style="grid-column:1/-1">
-          <label class="form-label" style="color:#c4b5fd">설명 · 꾸미기 <small style="font-weight:400;opacity:.7">(선택)</small></label>
+          <label class="form-label">설명 · 꾸미기 <small style="font-weight:400;color:var(--muted)">(선택)</small></label>
           <div class="gallery-quill-wrap" id="easterQuillWrap">
             <div id="easterQuill"></div>
           </div>
           <input type="hidden" name="description" id="easterDesc">
         </div>
-        {# GPT 꾸미기 #}
         <div style="grid-column:1/-1">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
             <input type="checkbox" name="gpt_decorate" value="true"
                    id="easterGptChk" onchange="toggleGptHint(this,'easterGptHint')"
-                   style="width:16px;height:16px;accent-color:#a78bfa">
-            <span style="font-size:.88rem;font-weight:600;color:#c4b5fd">✨ GPT 꾸미기 — 사진 보고 재미있는 코멘트 자동 생성</span>
+                   style="width:16px;height:16px;accent-color:var(--cartel-blue)">
+            <span style="font-size:.88rem;font-weight:600">✨ GPT 꾸미기 — 사진 보고 재미있는 코멘트 자동 생성</span>
           </label>
-          <div id="easterGptHint" style="display:none;padding:10px 12px;background:rgba(124,58,237,.15);border-radius:8px;border:1px solid rgba(167,139,250,.3)">
-            <label class="form-label" style="font-size:.78rem;color:#a78bfa">GPT에게 힌트 주기 <small>(선택)</small></label>
+          <div id="easterGptHint" style="display:none;padding:10px 12px;background:rgba(59,130,246,.06);border-radius:8px;border:1px solid rgba(59,130,246,.2)">
+            <label class="form-label" style="font-size:.78rem">GPT에게 힌트 주기 <small>(선택)</small></label>
             <input type="text" name="gpt_hint" class="form-control"
                    placeholder="예) 종강 뒤풀이, 술자리, 노래방 ..." maxlength="100">
           </div>
@@ -387,6 +438,7 @@
                 <button class="easter-section-toggle" onclick="eToggleSection(this)"
                         aria-expanded="true">접기 ▲</button>
                 {% if is_admin %}
+                  <button type="button" class="e-edit-btn" onclick="eToggleEditForm({{ post.id }})">수정</button>
                   <form method="post" action="/gallery/c/{{ post.id }}/delete"
                         style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
                     <button type="submit" class="e-delete-btn">🗑 삭제</button>
@@ -394,6 +446,87 @@
                 {% endif %}
               </div>
             </div>
+
+            {# ── 인라인 수정 폼 ── #}
+            {% if is_admin %}
+            {% set imgs_e = post.images | fromjson %}
+            <div id="eEditForm-{{ post.id }}" class="e-edit-form" style="display:none">
+              <form method="post" action="/gallery/c/{{ post.id }}/edit" enctype="multipart/form-data">
+                <div class="e-edit-grid">
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">제목 *</label>
+                    <input type="text" name="title" class="form-control" value="{{ post.title }}" required>
+                  </div>
+                  <div>
+                    <label class="form-label">유형</label>
+                    {% set preset_types = ['MT','개강총회','종강파티','회식','수상','세미나'] %}
+                    <select class="form-control" style="margin-bottom:4px"
+                            onchange="onEventType(this, this.parentNode.querySelector('.etype-custom'), null)">
+                      {% for t in preset_types %}
+                        <option value="{{ t }}" {% if post.event_type == t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                      <option value="" {% if post.event_type not in preset_types %}selected{% endif %}>기타 (직접 입력)</option>
+                    </select>
+                    <input type="text" class="form-control etype-custom"
+                           placeholder="유형 직접 입력" maxlength="20"
+                           value="{{ post.event_type if post.event_type not in preset_types else '' }}"
+                           {% if post.event_type not in preset_types %}name="event_type"{% endif %}
+                           {% if post.event_type in preset_types %}style="display:none"{% endif %}>
+                    {% if post.event_type in preset_types %}
+                    <input type="hidden" class="etype-hidden" name="event_type" value="{{ post.event_type }}">
+                    {% endif %}
+                  </div>
+                  <div>
+                    <label class="form-label">날짜</label>
+                    <input type="date" name="event_date" class="form-control"
+                           value="{{ post.event_date.isoformat() if post.event_date else '' }}">
+                  </div>
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">설명 · 꾸미기</label>
+                    <div class="gallery-quill-wrap" id="eEditQuillWrap-{{ post.id }}">
+                      <div id="eEditQuill-{{ post.id }}"></div>
+                    </div>
+                    <input type="hidden" name="description" id="eEditDesc-{{ post.id }}"
+                           data-initial="{{ post.description | e }}">
+                  </div>
+                  {% if imgs_e %}
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">사진 순서 · 삭제</label>
+                    <p style="font-size:.75rem;color:var(--muted);margin:-4px 0 10px">
+                      ← → 로 순서 변경 &nbsp;·&nbsp; 🗑 버튼으로 삭제 &nbsp;·&nbsp; <strong>첫 번째 사진이 크게 표시됩니다</strong>
+                    </p>
+                    <div class="e-edit-list" id="eSortable-{{ post.id }}">
+                      {% for img in imgs_e %}
+                      <div class="e-edit-row" data-fname="{{ img }}">
+                        <div class="e-edit-row-num">{{ loop.index }}</div>
+                        <img class="e-edit-row-img" src="/uploads/{{ img }}" alt="">
+                        {% if loop.first %}<span class="e-edit-thumb-badge">대표</span>{% endif %}
+                        <div class="e-edit-row-btns">
+                          <button type="button" class="e-order-btn" onclick="eMovePhoto(this,-1)" {% if loop.first %}disabled{% endif %}>←</button>
+                          <button type="button" class="e-order-btn" onclick="eMovePhoto(this,1)" {% if loop.last %}disabled{% endif %}>→</button>
+                          <button type="button" class="e-del-btn" onclick="eToggleDeletePhoto(this)">🗑</button>
+                        </div>
+                        <input type="checkbox" name="delete_images" value="{{ img }}" class="e-edit-del-chk" style="display:none">
+                      </div>
+                      {% endfor %}
+                    </div>
+                    <input type="hidden" name="image_order" class="e-image-order"
+                           value="{{ imgs_e | join(',') }}">
+                  </div>
+                  {% endif %}
+                  <div style="grid-column:1/-1">
+                    <label class="form-label">사진 추가</label>
+                    <input type="file" name="add_images" class="form-control" multiple accept="image/*">
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <button type="submit" class="e-submit-btn" style="padding:9px 22px;font-size:.86rem">💾 저장</button>
+                  <button type="button" class="e-cancel-btn" style="padding:9px 16px;font-size:.86rem"
+                          onclick="eToggleEditForm({{ post.id }})">취소</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
 
             <div class="easter-section-body">
               {% if post.description %}
@@ -607,6 +740,81 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'ArrowRight') eLightboxNav(1);
   if (e.key === 'Escape')     eCloseLightbox();
 });
+
+// ── 수정 폼 토글 + Quill 초기화 ──
+var _eEditQuills = {};
+function eToggleEditForm(postId) {
+  var form = document.getElementById('eEditForm-' + postId);
+  if (!form) return;
+  var hidden = form.style.display === 'none' || form.style.display === '';
+  form.style.display = hidden ? 'block' : 'none';
+  if (hidden) {
+    form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    setTimeout(function() {
+      if (!_eEditQuills[postId]) {
+        var container = document.getElementById('eEditQuill-' + postId);
+        var hiddenInp = document.getElementById('eEditDesc-' + postId);
+        if (!container || !hiddenInp) return;
+        var mods = {
+          toolbar: { container: _QUILL_TOOLBAR,
+                     handlers: { image: function() { _galleryImageHandler(_eEditQuills[postId]); } } }
+        };
+        if (typeof ImageResize !== 'undefined') mods.imageResize = { modules:['Resize','DisplaySize'] };
+        var q = new Quill(container, { theme:'snow', placeholder:'설명을 입력하세요', modules: mods });
+        if (hiddenInp.dataset.initial && hiddenInp.dataset.initial.trim()) {
+          q.clipboard.dangerouslyPasteHTML(hiddenInp.dataset.initial);
+        }
+        q.on('text-change', function() { hiddenInp.value = q.root.innerHTML; });
+        _eEditQuills[postId] = q;
+        // 폼 제출 전 동기화
+        form.querySelector('form').addEventListener('submit', function() {
+          hiddenInp.value = q.root.innerHTML;
+        });
+      }
+    }, 50);
+  }
+}
+
+// ── 사진 순서 이동 ──
+function eMovePhoto(btn, dir) {
+  var row = btn.closest('.e-edit-row');
+  var list = row.parentNode;
+  var rows = Array.from(list.querySelectorAll('.e-edit-row'));
+  var idx = rows.indexOf(row);
+  var target = rows[idx + dir];
+  if (!target) return;
+  if (dir === -1) list.insertBefore(row, target); else list.insertBefore(target, row);
+  _eRefreshPhotoList(list);
+}
+
+function eToggleDeletePhoto(btn) {
+  var row = btn.closest('.e-edit-row');
+  var chk = row.querySelector('.e-edit-del-chk');
+  var isDel = row.classList.toggle('is-deleted');
+  chk.checked = isDel;
+  btn.textContent = isDel ? '↩' : '🗑';
+}
+
+function _eRefreshPhotoList(list) {
+  var rows = Array.from(list.querySelectorAll('.e-edit-row'));
+  rows.forEach(function(row, i) {
+    row.querySelector('.e-edit-row-num').textContent = i + 1;
+    var badge = row.querySelector('.e-edit-thumb-badge');
+    if (i === 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'e-edit-thumb-badge'; badge.textContent = '대표';
+        row.querySelector('.e-edit-row-img').insertAdjacentElement('afterend', badge);
+      }
+    } else if (badge) badge.remove();
+    var btns = row.querySelectorAll('.e-order-btn');
+    btns[0].disabled = (i === 0);
+    btns[1].disabled = (i === rows.length - 1);
+  });
+  var fnames = rows.map(function(r) { return r.dataset.fname; });
+  var inp = list.closest('form').querySelector('.e-image-order');
+  if (inp) inp.value = fnames.join(',');
+}
 
 // ── 배치 편집 모드 (이스터에그) ──
 var _eSortables = [];
