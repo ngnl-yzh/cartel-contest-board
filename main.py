@@ -774,7 +774,8 @@ async def index(
     # 관리자가 ⭐ 주목 지정한 공모전 우선, 없으면 마감임박+조회수 자동 선택
     featured_manual = (
         db.query(Competition)
-        .filter(Competition.is_featured.is_(True), Competition.deadline >= today)
+        .filter(Competition.is_featured.is_(True), Competition.deadline >= today,
+                Competition.is_active.isnot(False))
         .order_by(Competition.deadline.asc())
         .limit(_FEATURED_MAX)
         .all()
@@ -785,7 +786,7 @@ async def index(
         # 1순위: 마감 임박 (14일 이내), 2순위: 조회수, 3순위: 마감일 빠른 순
         featured = (
             db.query(Competition)
-            .filter(Competition.deadline >= today)
+            .filter(Competition.deadline >= today, Competition.is_active.isnot(False))
             .order_by(
                 case((Competition.deadline <= today + timedelta(days=14), 0), else_=1).asc(),
                 Competition.view_count.desc(),
@@ -797,10 +798,14 @@ async def index(
     _annotate(featured)
 
     # ── 마감 공모전 수 (아카이브 링크용) ──
-    closed_count = db.query(func.count(Competition.id)).filter(Competition.deadline < today).scalar() or 0
+    closed_count = (
+        db.query(func.count(Competition.id))
+        .filter(Competition.deadline < today, Competition.is_active.isnot(False))
+        .scalar() or 0
+    )
 
     # ── 메인 그리드: 마감된 공모전 제외 ──
-    query = db.query(Competition).filter(Competition.deadline >= today)
+    query = db.query(Competition).filter(Competition.deadline >= today, Competition.is_active.isnot(False))
     if tag and tag != "all":
         query = query.filter(Competition.tags.like(f'%"{tag}"%'))
     if q:
@@ -885,7 +890,7 @@ async def competitions_archive(
 ):
     today = _today()
 
-    query = db.query(Competition).filter(Competition.deadline < today)
+    query = db.query(Competition).filter(Competition.deadline < today, Competition.is_active.isnot(False))
     if tag and tag != "all":
         query = query.filter(Competition.tags.like(f'%"{tag}"%'))
     if q:
@@ -2033,6 +2038,22 @@ async def admin_toggle_featured(
     comp = db.query(Competition).filter(Competition.id == comp_id).first()
     if comp:
         comp.is_featured = not bool(comp.is_featured)
+        db.commit()
+    return RedirectResponse(url="/admin/competitions", status_code=303)
+
+
+@app.post("/admin/competition/{comp_id}/toggle-active")
+async def admin_toggle_active(
+    comp_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """공모전 활성/비활성 토글 — 비활성 상태면 일반 사용자에게 숨김"""
+    if r := _privileged_redirect(request, db):
+        return r
+    comp = db.query(Competition).filter(Competition.id == comp_id).first()
+    if comp:
+        comp.is_active = not bool(comp.is_active if comp.is_active is not None else True)
         db.commit()
     return RedirectResponse(url="/admin/competitions", status_code=303)
 
@@ -4946,6 +4967,7 @@ async def admin_crawl_add(
         prize=item.get("prize", ""),
         link=item.get("link", ""),
         description=f"[{item.get('source_label', '')}에서 자동 수집]\n\n원문 링크: {item.get('link', '')}",
+        is_active=False,  # 자동 추가: 관리자 검토 후 활성화 필요
     )
     db.add(comp)
     db.commit()
@@ -4981,6 +5003,7 @@ async def admin_crawl_add_bulk(
             prize=item.get("prize", ""),
             link=item.get("link", ""),
             description=f"[{item.get('source_label', '')}에서 자동 수집]\n\n원문 링크: {item.get('link', '')}",
+            is_active=False,  # 자동 추가: 관리자 검토 후 활성화 필요
         )
         db.add(comp)
         added += 1
@@ -5460,6 +5483,7 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
         description  = parsed.get("description", ""),
         image        = saved_image,
         files        = json.dumps(saved_files, ensure_ascii=False),
+        is_active    = False,  # 자동 추가(GPT): 관리자 검토 후 활성화 필요
     )
     db.add(comp)
     db.commit()

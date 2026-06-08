@@ -34,6 +34,7 @@ class Competition(Base):
     image = Column(String(500), nullable=True)
     max_members = Column(Integer, nullable=True)
     is_featured = Column(Boolean, default=False)
+    is_active   = Column(Boolean, default=True)   # False = 비활성(숨김); 자동 추가 시 False로 시작
     submitted = Column(Boolean, default=False)
     submitted_at = Column(DateTime, nullable=True)
     submission_docs = Column(Text, default="[]")   # JSON: ["활동계획서","기획서",...] 제출 서류 목록

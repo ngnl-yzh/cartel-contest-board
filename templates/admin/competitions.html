@@ -44,6 +44,10 @@
         <span>주목 표시</span>
         <strong>{{ competitions | selectattr('is_featured') | list | length }}</strong>
       </div>
+      <div class="stat-card" style="border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04)">
+        <span>비활성 (숨김)</span>
+        <strong style="color:#dc2626">{{ competitions | rejectattr('is_active') | list | length }}</strong>
+      </div>
     </div>
 
     {% if competitions %}
@@ -73,6 +77,7 @@
             <th>조회수</th>
             <th>상태</th>
             <th style="width:36px" title="캐러셀 주목 표시">⭐</th>
+            <th style="width:44px" title="공개 여부 (활성/비활성)">공개</th>
             <th></th>
           </tr>
         </thead>
@@ -105,6 +110,15 @@
                 <button type="submit" class="featured-toggle-btn {% if comp.is_featured %}is-on{% endif %}"
                         title="{{ '주목 해제' if comp.is_featured else '캐러셀에 주목 표시' }}">
                   ⭐
+                </button>
+              </form>
+            </td>
+            <td style="text-align:center">
+              <form method="post" action="/admin/competition/{{ comp.id }}/toggle-active" style="margin:0">
+                <button type="submit"
+                        class="active-toggle-btn {% if comp.is_active != False %}is-on{% endif %}"
+                        title="{{ '비활성화 (숨기기)' if comp.is_active != False else '활성화 (공개)' }}">
+                  {% if comp.is_active != False %}🟢{% else %}🔴{% endif %}
                 </button>
               </form>
             </td>
@@ -148,6 +162,27 @@
   opacity: 1;
   border-color: #f59e0b;
   background: rgba(245,158,11,0.08);
+}
+.active-toggle-btn {
+  background: none;
+  border: 1.5px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: .85rem;
+  cursor: pointer;
+  opacity: .45;
+  transition: opacity .15s, border-color .15s;
+  line-height: 1;
+}
+.active-toggle-btn:hover { opacity: .8; }
+.active-toggle-btn.is-on {
+  opacity: 1;
+  border-color: #22c55e;
+  background: rgba(34,197,94,0.08);
+}
+/* 비활성 행 흐리게 */
+tr:has(.active-toggle-btn:not(.is-on)) {
+  opacity: .55;
 }
 .bulk-del-bar {
   display: flex;

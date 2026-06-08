@@ -46,6 +46,7 @@ def init_db():
             _add_col(conn, inspector, "competitions", "award_date",        "award_date DATE")
             _add_col(conn, inspector, "competitions", "review_dates",      "review_dates TEXT DEFAULT '[]'")
             _add_col(conn, inspector, "competitions", "is_featured",       "is_featured BOOLEAN DEFAULT FALSE")
+            _add_col(conn, inspector, "competitions", "is_active",         "is_active BOOLEAN DEFAULT 1")
             _add_col(conn, inspector, "competitions", "view_count",        "view_count INTEGER DEFAULT 0")
             _add_col(conn, inspector, "competitions", "submission_docs",   "submission_docs TEXT DEFAULT '[]'")
             _add_col(conn, inspector, "competitions", "stage_override",    "stage_override VARCHAR(20)")
