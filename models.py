@@ -360,6 +360,18 @@ class CalendarEvent(Base):
     created_at  = Column(DateTime, default=datetime.now)
 
 
+class PushSubscription(Base):
+    """웹 푸시 구독 정보 (PWA 알림용)"""
+    __tablename__ = "push_subscriptions"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    member_id  = Column(Integer, nullable=True)          # 로그인한 회원 ID (없으면 None)
+    endpoint   = Column(Text, nullable=False, unique=True)
+    p256dh     = Column(Text, nullable=False)
+    auth       = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+
 class TeamKickRequest(Base):
     """팀장이 접수 이후 팀원 강퇴 요청 — 관리자 승인 필요"""
     __tablename__ = "team_kick_requests"

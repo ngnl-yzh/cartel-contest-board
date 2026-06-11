@@ -58,7 +58,7 @@ from models import (
     DirectMessage, ExternalAchievement, Follow, Notification,
     Post, PostLike,
     CalendarEvent,
-    GalleryPost, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
+    GalleryPost, PushSubscription, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -318,6 +318,159 @@ def startup():
         db.close()
     except Exception:
         pass
+
+    # ── VAPID 키 초기화 ──────────────────────────────────────────────────────
+    _init_vapid_keys()
+
+    # ── APScheduler: 생일/행사 알림 ──────────────────────────────────────────
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        import pytz
+        _scheduler = BackgroundScheduler(timezone=pytz.timezone("Asia/Seoul"))
+        # 매일 오전 8시 KST 에 실행
+        _scheduler.add_job(_scheduled_push_daily, "cron", hour=8, minute=0, id="daily_push")
+        _scheduler.start()
+        _log.info("APScheduler 시작: 매일 08:00 KST 푸시 알림 스케줄 등록")
+    except Exception as _e:
+        _log.warning("APScheduler 시작 실패: %s", _e)
+
+
+# ── VAPID 키 관리 ──────────────────────────────────────────────────────────────
+
+_vapid_private_key: str = ""
+_vapid_public_key:  str = ""
+
+
+def _init_vapid_keys():
+    """VAPID 키를 환경변수 또는 DB(AppSetting)에서 로드. 없으면 생성 후 DB에 저장."""
+    global _vapid_private_key, _vapid_public_key
+    # 1순위: 환경변수
+    if os.getenv("VAPID_PRIVATE_KEY") and os.getenv("VAPID_PUBLIC_KEY"):
+        _vapid_private_key = os.getenv("VAPID_PRIVATE_KEY")
+        _vapid_public_key  = os.getenv("VAPID_PUBLIC_KEY")
+        return
+    # 2순위: DB
+    try:
+        db = SessionLocal()
+        priv = db.query(AppSetting).filter(AppSetting.key == "vapid_private_key").first()
+        pub  = db.query(AppSetting).filter(AppSetting.key == "vapid_public_key").first()
+        if priv and pub:
+            _vapid_private_key = priv.value
+            _vapid_public_key  = pub.value
+            db.close(); return
+        # 생성
+        from py_vapid import Vapid
+        import base64
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        v = Vapid()
+        v.generate_keys()
+        _vapid_private_key = v.private_pem().decode()
+        pub_bytes = v.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+        _vapid_public_key = base64.urlsafe_b64encode(pub_bytes).decode().rstrip("=")
+        db.add(AppSetting(key="vapid_private_key", value=_vapid_private_key))
+        db.add(AppSetting(key="vapid_public_key",  value=_vapid_public_key))
+        db.commit(); db.close()
+        _log.info("VAPID 키 신규 생성 완료")
+    except Exception as _e:
+        _log.warning("VAPID 키 초기화 실패: %s", _e)
+
+
+# ── 푸시 전송 헬퍼 ────────────────────────────────────────────────────────────
+
+def _send_push_to_subscription(sub: "PushSubscription", title: str, body: str,
+                                url: str = "/", tag: str = "cartel") -> bool:
+    """단일 구독에 푸시 전송. 실패(구독 만료 등) 시 False 반환."""
+    if not _vapid_private_key:
+        return False
+    try:
+        from pywebpush import webpush, WebPushException
+        webpush(
+            subscription_info={
+                "endpoint": sub.endpoint,
+                "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+            },
+            data=json.dumps({"title": title, "body": body, "url": url, "tag": tag},
+                            ensure_ascii=False),
+            vapid_private_key=_vapid_private_key,
+            vapid_claims={"sub": "mailto:admin@cartel.kr"},
+        )
+        return True
+    except Exception as _e:
+        _log.debug("푸시 전송 실패 (endpoint=%s…): %s", sub.endpoint[:40], _e)
+        return False
+
+
+def _broadcast_push(db, title: str, body: str, url: str = "/",
+                    tag: str = "cartel", member_ids: list = None):
+    """모든(또는 지정) 구독자에게 푸시 전송. 만료된 구독은 자동 삭제."""
+    query = db.query(PushSubscription)
+    if member_ids is not None:
+        query = query.filter(PushSubscription.member_id.in_(member_ids))
+    subs = query.all()
+    expired = []
+    for sub in subs:
+        ok = _send_push_to_subscription(sub, title, body, url, tag)
+        if not ok:
+            expired.append(sub.id)
+    if expired:
+        db.query(PushSubscription).filter(PushSubscription.id.in_(expired)).delete(synchronize_session=False)
+        db.commit()
+    return len(subs) - len(expired)
+
+
+# ── 스케줄 푸시 (매일 08:00 KST) ─────────────────────────────────────────────
+
+def _scheduled_push_daily():
+    """생일 알림 + 캘린더 행사 알림 (당일/전날)"""
+    try:
+        db = SessionLocal()
+        today = _today()
+
+        # ── 중복 방지: 오늘 이미 실행했으면 스킵 ────────────────────────────
+        key = f"push_daily_{today.isoformat()}"
+        already = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if already:
+            db.close(); return
+        db.add(AppSetting(key=key, value="1"))
+        db.commit()
+
+        # ── 생일 알림 ────────────────────────────────────────────────────────
+        mm_dd = today.strftime("%m-%d")
+        bd_members = db.query(Member).filter(Member.birthday == mm_dd).all()
+        for m in bd_members:
+            _broadcast_push(db,
+                title="🎂 오늘은 생일이에요!",
+                body=f"오늘은 {m.activity_name}님의 생일입니다! 생일 축하해요 🎉",
+                url="/calendar",
+                tag="birthday",
+            )
+
+        # ── 캘린더 행사 — 당일 ───────────────────────────────────────────────
+        events_today = db.query(CalendarEvent).filter(CalendarEvent.start_date == today).all()
+        for ev in events_today:
+            _broadcast_push(db,
+                title=f"📅 오늘 일정: {ev.title}",
+                body=ev.description[:80] if ev.description else f"{ev.event_type} 일정이 있어요!",
+                url="/calendar",
+                tag="event-today",
+            )
+
+        # ── 캘린더 행사 — 전날 알림 ──────────────────────────────────────────
+        tomorrow = today + timedelta(days=1)
+        events_tomorrow = db.query(CalendarEvent).filter(CalendarEvent.start_date == tomorrow).all()
+        for ev in events_tomorrow:
+            _broadcast_push(db,
+                title=f"📢 내일 일정 알림: {ev.title}",
+                body=f"내일({tomorrow.strftime('%m/%d')}) {ev.event_type} 일정이 있어요!",
+                url="/calendar",
+                tag="event-tomorrow",
+            )
+
+        db.close()
+        _log.info("스케줄 푸시 완료: 생일%d명, 오늘행사%d개, 내일행사%d개",
+                  len(bd_members), len(events_today), len(events_tomorrow))
+    except Exception as _e:
+        _log.error("스케줄 푸시 오류: %s", _e)
 
 
 # ── 날짜 / 상태 헬퍼 ──────────────────────────────────────────────────────────
@@ -3216,6 +3369,96 @@ async def admin_toggle_graduated(
         db.commit()
     referer = request.headers.get("referer", "/admin/members")
     return RedirectResponse(url=referer, status_code=303)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  PWA 푸시 알림 라우트
+# ════════════════════════════════════════════════════════════════════════════
+
+from fastapi.responses import FileResponse as _FileResponse
+
+@app.get("/sw.js")
+async def service_worker():
+    """서비스 워커를 루트 스코프로 서빙"""
+    return _FileResponse(
+        BASE_DIR / "static" / "sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"},
+    )
+
+
+@app.get("/push/vapid-public-key")
+async def get_vapid_public_key():
+    """프론트엔드에서 구독 시 필요한 VAPID 공개키 반환"""
+    return JSONResponse({"publicKey": _vapid_public_key})
+
+
+@app.post("/push/subscribe")
+async def push_subscribe(request: Request, db: Session = Depends(get_db)):
+    """푸시 구독 정보 저장"""
+    try:
+        data = await request.json()
+        endpoint = data.get("endpoint", "")
+        p256dh   = data.get("keys", {}).get("p256dh", "")
+        auth     = data.get("keys", {}).get("auth", "")
+        if not endpoint or not p256dh or not auth:
+            return JSONResponse({"ok": False, "error": "invalid"}, status_code=400)
+        cm = _current_member(request, db)
+        existing = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
+        if existing:
+            existing.member_id = cm.id if cm else None
+            existing.p256dh = p256dh; existing.auth = auth
+        else:
+            db.add(PushSubscription(
+                member_id=cm.id if cm else None,
+                endpoint=endpoint, p256dh=p256dh, auth=auth,
+            ))
+        db.commit()
+        return JSONResponse({"ok": True})
+    except Exception as _e:
+        _log.warning("push_subscribe 오류: %s", _e)
+        return JSONResponse({"ok": False}, status_code=500)
+
+
+@app.post("/push/unsubscribe")
+async def push_unsubscribe(request: Request, db: Session = Depends(get_db)):
+    """푸시 구독 취소"""
+    try:
+        data = await request.json()
+        endpoint = data.get("endpoint", "")
+        db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).delete()
+        db.commit()
+        return JSONResponse({"ok": True})
+    except Exception:
+        return JSONResponse({"ok": False}, status_code=500)
+
+
+@app.get("/admin/push", response_class=HTMLResponse)
+async def admin_push_page(request: Request, db: Session = Depends(get_db)):
+    """관리자 푸시 방송 페이지"""
+    if r := _admin_redirect(request):
+        return r
+    sub_count = db.query(func.count(PushSubscription.id)).scalar() or 0
+    return _render(request, "admin/push.html", _ctx(request, db,
+        sub_count=sub_count,
+        vapid_ok=bool(_vapid_public_key),
+    ))
+
+
+@app.post("/admin/push/send")
+async def admin_push_send(
+    request: Request,
+    title: str = Form(...),
+    body:  str = Form(...),
+    url:   str = Form("/"),
+    db: Session = Depends(get_db),
+):
+    """관리자가 전체 구독자에게 푸시 방송"""
+    if r := _admin_redirect(request):
+        return r
+    sent = _broadcast_push(db, title=title.strip(), body=body.strip(),
+                           url=url.strip() or "/", tag="admin-broadcast")
+    return RedirectResponse(url=f"/admin/push?sent={sent}", status_code=303)
 
 
 # ════════════════════════════════════════════════════════════════════════════

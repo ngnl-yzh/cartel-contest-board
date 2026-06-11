@@ -1,11 +1,14 @@
 {
-  "name": "CARTEL",
+  "name": "CARTEL 공모전 보드",
   "short_name": "CARTEL",
   "description": "AI · Competition · Together — 카르텔 공모전 플랫폼",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
-  "background_color": "#0a0f1e",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f8fb",
   "theme_color": "#2563eb",
+  "lang": "ko",
+  "categories": ["productivity", "social"],
   "icons": [
     {
       "src": "/static/images/cartel-icon-192.png",
@@ -19,5 +22,11 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    { "name": "공모전 목록", "url": "/competitions", "icons": [{"src":"/static/images/cartel-icon-192.png","sizes":"192x192"}] },
+    { "name": "캘린더",    "url": "/calendar",      "icons": [{"src":"/static/images/cartel-icon-192.png","sizes":"192x192"}] },
+    { "name": "채팅",      "url": "/chat",           "icons": [{"src":"/static/images/cartel-icon-192.png","sizes":"192x192"}] }
   ]
 }

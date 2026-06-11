@@ -304,6 +304,123 @@
     });
   })();
   </script>
+
+  {# ── PWA 서비스 워커 등록 + 푸시 알림 구독 ── #}
+  <script>
+  (function () {
+    // 서비스 워커 등록
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(reg => {
+          window._swReg = reg;
+          // 업데이트 감지 → 새로고침 유도
+          reg.addEventListener('updatefound', () => {
+            const newSW = reg.installing;
+            if (!newSW) return;
+            newSW.addEventListener('statechange', () => {
+              if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                showUpdateBanner();
+              }
+            });
+          });
+        })
+        .catch(e => console.warn('[SW] 등록 실패:', e));
+    }
+
+    // 업데이트 배너
+    function showUpdateBanner() {
+      const banner = document.createElement('div');
+      banner.id = 'sw-update-banner';
+      banner.innerHTML = '새 버전이 있어요! <button onclick="location.reload()">지금 업데이트</button>';
+      document.body.appendChild(banner);
+    }
+
+    // 푸시 알림 구독 (로그인한 경우만)
+    {% if current_member is defined and current_member %}
+    async function subscribePush() {
+      if (!('PushManager' in window) || !window._swReg) return;
+      try {
+        const existing = await window._swReg.pushManager.getSubscription();
+        if (existing) return; // 이미 구독 중
+        // 알림 권한 요청
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+        // VAPID 공개키 가져오기
+        const res = await fetch('/push/vapid-public-key');
+        const { publicKey } = await res.json();
+        if (!publicKey) return;
+        const key = Uint8Array.from(atob(publicKey.replace(/-/g,'+').replace(/_/g,'/')+
+          '==='.slice(0,(4-publicKey.length%4)%4)), c => c.charCodeAt(0));
+        const sub = await window._swReg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+        // 서버에 구독 정보 전송
+        await fetch('/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON()),
+        });
+        console.info('[Push] 구독 완료');
+      } catch (e) {
+        console.warn('[Push] 구독 실패:', e);
+      }
+    }
+    // 페이지 로드 후 구독 시도
+    window.addEventListener('load', () => setTimeout(subscribePush, 2000));
+    {% endif %}
+  })();
+  </script>
+
+  {# SW 업데이트 배너 스타일 #}
+  <style>
+  #sw-update-banner {
+    position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+    background: var(--cartel-blue); color: #fff;
+    padding: 10px 18px; border-radius: 30px;
+    font-size: .85rem; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 4px 20px rgba(37,99,235,.35);
+    z-index: 9999; white-space: nowrap;
+  }
+  #sw-update-banner button {
+    background: #fff; color: var(--cartel-blue);
+    border: none; border-radius: 20px;
+    padding: 4px 12px; font-size: .8rem; font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* ── 모바일 전역 개선 ── */
+  @media (max-width: 768px) {
+    /* 테이블 가로 스크롤 */
+    .table-wrap, .section-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table { min-width: 500px; }
+
+    /* 터치 타깃 최소 44px */
+    .btn, button, input[type="submit"],
+    select, input[type="text"], input[type="password"],
+    input[type="email"], input[type="number"],
+    input[type="tel"], input[type="date"], textarea {
+      min-height: 44px;
+    }
+    input[type="checkbox"], input[type="radio"] {
+      min-height: unset;
+    }
+
+    /* 폼 입력 여백 */
+    .field input, .field select, .field textarea {
+      padding: 10px 12px;
+      font-size: 16px !important; /* iOS 자동확대 방지 */
+    }
+
+    /* compact-select도 충분한 높이 */
+    .compact-select { min-height: 44px; }
+  }
+  </style>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>

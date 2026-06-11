@@ -14,3 +14,6 @@ beautifulsoup4==4.12.3
 lxml==5.2.2
 markdown==3.7
 Pillow==10.4.0
+pywebpush==2.0.0
+apscheduler==3.10.4
+cryptography==43.0.3

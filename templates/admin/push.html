@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}푸시 알림 관리 · 공모전 보드{% endblock %}
+
+{% block content %}
+<main class="admin-page">
+  <div class="container" style="max-width:680px">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow"><a href="/admin" style="color:inherit;text-decoration:none;opacity:.6">Admin</a> › 푸시 알림</p>
+        <h1>🔔 푸시 알림 관리</h1>
+      </div>
+      <a href="/admin" class="btn btn-outline">🏠 홈</a>
+    </div>
+
+    {% set sent = request.query_params.get('sent') %}
+    {% if sent %}
+    <div style="margin-bottom:1rem;padding:12px 16px;border-radius:10px;background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.3);font-size:.9rem">
+      ✅ {{ sent }}명의 구독자에게 전송 완료
+    </div>
+    {% endif %}
+
+    {# ── 현황 ── #}
+    <div class="stat-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card">
+        <span>총 구독자</span>
+        <strong>{{ sub_count }}명</strong>
+      </div>
+      <div class="stat-card {% if not vapid_ok %}is-warn{% endif %}">
+        <span>VAPID 키 상태</span>
+        <strong>{% if vapid_ok %}✅ 정상{% else %}❌ 미설정{% endif %}</strong>
+      </div>
+    </div>
+
+    {% if not vapid_ok %}
+    <div class="alert alert-error" style="margin-bottom:1rem">
+      VAPID 키가 설정되지 않아 푸시 전송이 불가합니다. 서버를 재시작하거나 환경변수를 확인하세요.
+    </div>
+    {% endif %}
+
+    {# ── 전체 방송 폼 ── #}
+    <section class="form-section">
+      <h2>📢 전체 방송</h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:.75rem">
+        현재 알림을 허용한 모든 팀원에게 푸시 알림을 보냅니다.
+      </p>
+      <form method="post" action="/admin/push/send">
+        <label class="field">
+          <span>제목 <span class="required">*</span></span>
+          <input type="text" name="title" required maxlength="100" placeholder="예: 이번 주 정기모임 안내">
+        </label>
+        <label class="field">
+          <span>내용 <span class="required">*</span></span>
+          <textarea name="body" rows="3" required maxlength="300" placeholder="알림 본문 내용"></textarea>
+        </label>
+        <label class="field">
+          <span>클릭 시 이동 URL</span>
+          <input type="text" name="url" value="/" placeholder="예: /calendar 또는 /competitions">
+          <small class="field-hint">비워두면 홈(/)으로 이동</small>
+        </label>
+        <button type="submit" class="btn btn-primary" {% if not vapid_ok %}disabled{% endif %}>
+          🔔 전송
+        </button>
+      </form>
+    </section>
+
+    {# ── 자동 발송 안내 ── #}
+    <section class="form-section" style="margin-top:1.5rem">
+      <h2>⏰ 자동 발송 일정</h2>
+      <div style="display:flex;flex-direction:column;gap:.6rem;font-size:.88rem">
+        <div class="push-auto-row">
+          <span class="push-auto-icon">🎂</span>
+          <div>
+            <strong>생일 알림</strong>
+            <p class="muted" style="margin:0;font-size:.8rem">매일 오전 8시 KST — 생일인 팀원이 있을 때 전체 발송</p>
+          </div>
+        </div>
+        <div class="push-auto-row">
+          <span class="push-auto-icon">📅</span>
+          <div>
+            <strong>오늘 일정 알림</strong>
+            <p class="muted" style="margin:0;font-size:.8rem">매일 오전 8시 KST — 캘린더에 오늘 일정이 있을 때 전체 발송</p>
+          </div>
+        </div>
+        <div class="push-auto-row">
+          <span class="push-auto-icon">📢</span>
+          <div>
+            <strong>내일 일정 예고</strong>
+            <p class="muted" style="margin:0;font-size:.8rem">매일 오전 8시 KST — 내일 일정이 있을 때 미리 알림</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<style>
+.push-auto-row {
+  display: flex; align-items: flex-start; gap: .75rem;
+  padding: .6rem .8rem; border-radius: 10px; background: var(--bg);
+  border: 1px solid var(--line);
+}
+.push-auto-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+.stat-card.is-warn { background: rgba(239,68,68,.05); border-color: rgba(239,68,68,.3); }
+</style>
+{% endblock %}
