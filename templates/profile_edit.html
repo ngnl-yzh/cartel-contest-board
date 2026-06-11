@@ -47,6 +47,35 @@
           <input type="file" name="profile_image" accept="image/*">
         </label>
 
+        {# ── 생일 (월/일) ── #}
+        <div class="field" id="birthday">
+          <span>생일 <small style="font-weight:400;opacity:.6">캘린더에 표시됩니다 · 연도는 저장되지 않아요</small></span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select name="birthday_month" class="compact-select" style="width:90px">
+              <option value="">월</option>
+              {% for m in range(1,13) %}
+              <option value="{{ m }}"
+                {% if member.birthday and member.birthday[:2]|int == m %}selected{% endif %}>
+                {{ m }}월
+              </option>
+              {% endfor %}
+            </select>
+            <select name="birthday_day" class="compact-select" style="width:80px">
+              <option value="">일</option>
+              {% for d in range(1,32) %}
+              <option value="{{ d }}"
+                {% if member.birthday and member.birthday[3:]|int == d %}selected{% endif %}>
+                {{ d }}일
+              </option>
+              {% endfor %}
+            </select>
+            {% if member.birthday %}
+            <span style="font-size:.82rem;color:var(--muted)">현재: {{ member.birthday[:2]|int }}월 {{ member.birthday[3:]|int }}일</span>
+            {% endif %}
+          </div>
+          <small class="field-hint">두 항목 모두 비우면 생일 정보가 삭제됩니다</small>
+        </div>
+
         {# skills/links hidden — JS로 채워짐 #}
         <input type="hidden" name="skills_json" id="skillsJsonInput" value="{{ member.skills or '[]' }}">
         <input type="hidden" name="links_json"  id="linksJsonInput"  value="{{ member.links  or '[]' }}">

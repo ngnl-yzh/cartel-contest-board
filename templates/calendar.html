@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}생일 캘린더 · 공모전 보드{% endblock %}
+
+{% block content %}
+<main class="cal-page">
+  <div class="container" style="max-width:1100px">
+
+    {# ── 헤더 ── #}
+    <div class="page-heading" style="margin-bottom:1.5rem">
+      <div>
+        <p class="eyebrow">CARTEL</p>
+        <h1>🎂 생일 캘린더</h1>
+      </div>
+      <a href="/profile/edit/me#birthday" class="btn btn-outline">내 생일 등록</a>
+    </div>
+
+    <div class="cal-layout">
+      {# ── 캘린더 메인 ── #}
+      <div class="cal-main">
+
+        {# 월 네비게이션 #}
+        <div class="cal-nav">
+          <a href="/calendar?month={{ prev_month }}" class="cal-nav-btn" title="이전 달">‹</a>
+          <span class="cal-nav-title">{{ year }}년 {{ month_name }}</span>
+          <a href="/calendar?month={{ next_month }}" class="cal-nav-btn" title="다음 달">›</a>
+        </div>
+
+        {# 요일 헤더 #}
+        <div class="cal-grid">
+          {% for dow in ["일","월","화","수","목","금","토"] %}
+          <div class="cal-dow {% if loop.index0 == 0 %}is-sun{% elif loop.index0 == 6 %}is-sat{% endif %}">{{ dow }}</div>
+          {% endfor %}
+
+          {# 날짜 셀 #}
+          {% for week in cal_weeks %}
+            {% for day in week %}
+            <div class="cal-cell {% if day == 0 %}is-empty{% endif %}
+                         {% if day == today.day and mon == today.month and year == today.year %}is-today{% endif %}
+                         {% if day != 0 and bd_map.get(day) %}has-bd{% endif %}">
+              {% if day != 0 %}
+              <span class="cal-day-num">{{ day }}</span>
+              {% if bd_map.get(day) %}
+              <div class="cal-bdays">
+                {% for m in bd_map[day] %}
+                <div class="cal-bday-chip {% if m.is_graduated %}is-graduated{% endif %}"
+                     title="{{ m.activity_name }}{% if m.is_graduated %} (졸업){% endif %}">
+                  {% if m.profile_image %}
+                    <img src="/uploads/{{ m.profile_image }}" alt="{{ m.activity_name }}" class="cal-avatar">
+                  {% else %}
+                    <span class="cal-avatar cal-avatar-initial">{{ m.activity_name[0] }}</span>
+                  {% endif %}
+                  <span class="cal-bday-name">{{ m.activity_name }}</span>
+                  {% if m.is_graduated %}<span class="cal-grad-badge">🎓</span>{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% endif %}
+            </div>
+            {% endfor %}
+          {% endfor %}
+        </div>{# /cal-grid #}
+      </div>{# /cal-main #}
+
+      {# ── 사이드바 ── #}
+      <aside class="cal-side">
+
+        {# 이달의 생일 #}
+        <div class="cal-side-card">
+          <h3 class="cal-side-title">🎉 {{ month_name }} 생일</h3>
+          {% if this_month_bdays %}
+          <ul class="cal-bday-list">
+            {% for item in this_month_bdays %}
+            {% set m = item.member %}
+            <li class="cal-bday-row {% if m.is_graduated %}is-graduated{% endif %}">
+              <a href="/profile/{{ m.activity_name }}" class="cal-bday-avatar-link">
+                {% if m.profile_image %}
+                  <img src="/uploads/{{ m.profile_image }}" class="cal-side-avatar" alt="{{ m.activity_name }}">
+                {% else %}
+                  <span class="cal-side-avatar cal-avatar-initial">{{ m.activity_name[0] }}</span>
+                {% endif %}
+              </a>
+              <div class="cal-bday-info">
+                <a href="/profile/{{ m.activity_name }}" class="cal-bday-link">
+                  {{ m.activity_name }}
+                  {% if m.is_graduated %}<span class="cal-grad-inline">🎓 졸업</span>{% endif %}
+                </a>
+                {% if m.generation %}<span class="gen-badge">{{ m.generation }}기</span>{% endif %}
+              </div>
+              <span class="cal-bday-date">{{ "%d일" % item.day }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="cal-empty">이달 생일인 팀원이 없어요 🙂</p>
+          {% endif %}
+        </div>
+
+        {# 다가오는 생일 (30일 이내) #}
+        {% if upcoming %}
+        <div class="cal-side-card" style="margin-top:1rem">
+          <h3 class="cal-side-title">⏳ 다가오는 생일 <small style="font-size:.8rem;font-weight:400;opacity:.6">30일 이내</small></h3>
+          <ul class="cal-bday-list">
+            {% for item in upcoming %}
+            {% set m = item.member %}
+            <li class="cal-bday-row {% if m.is_graduated %}is-graduated{% endif %}">
+              <a href="/profile/{{ m.activity_name }}" class="cal-bday-avatar-link">
+                {% if m.profile_image %}
+                  <img src="/uploads/{{ m.profile_image }}" class="cal-side-avatar" alt="{{ m.activity_name }}">
+                {% else %}
+                  <span class="cal-side-avatar cal-avatar-initial">{{ m.activity_name[0] }}</span>
+                {% endif %}
+              </a>
+              <div class="cal-bday-info">
+                <a href="/profile/{{ m.activity_name }}" class="cal-bday-link">
+                  {{ m.activity_name }}
+                  {% if m.is_graduated %}<span class="cal-grad-inline">🎓</span>{% endif %}
+                </a>
+                <span class="cal-upcoming-date">{{ item.date.strftime('%m/%d') }}</span>
+              </div>
+              <span class="cal-bday-days {% if item.days == 0 %}is-today-bd{% endif %}">
+                {% if item.days == 0 %}🎂 오늘!{% else %}D-{{ item.days }}{% endif %}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+      </aside>
+    </div>{# /cal-layout #}
+
+  </div>
+</main>
+
+<style>
+/* ── 레이아웃 ── */
+.cal-page { padding: 2rem 0 4rem; }
+.cal-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .cal-layout { grid-template-columns: 1fr; }
+  .cal-side { order: -1; }
+}
+
+/* ── 월 네비 ── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: .75rem;
+}
+.cal-nav-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.cal-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  font-size: 1.2rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.cal-nav-btn:hover { background: var(--bg); border-color: var(--cartel-blue); color: var(--cartel-blue); }
+
+/* ── 달력 그리드 ── */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  background: var(--line);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.cal-dow {
+  background: var(--surface);
+  text-align: center;
+  font-size: .78rem;
+  font-weight: 700;
+  padding: 8px 4px;
+  color: var(--muted);
+  letter-spacing: .04em;
+}
+.cal-dow.is-sun { color: #ef4444; }
+.cal-dow.is-sat { color: var(--cartel-blue); }
+
+.cal-cell {
+  background: var(--surface);
+  min-height: 80px;
+  padding: 6px 6px 4px;
+  position: relative;
+  transition: background .12s;
+  vertical-align: top;
+}
+.cal-cell.is-empty { background: var(--bg); min-height: 80px; }
+.cal-cell.is-today { background: rgba(37,99,235,.05); }
+.cal-cell.is-today .cal-day-num {
+  background: var(--cartel-blue);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-cell.has-bd { background: rgba(250,204,21,.04); }
+
+.cal-day-num {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--muted);
+  display: inline-block;
+  margin-bottom: 2px;
+}
+/* 일요일: 1번째 칸 */
+.cal-grid > .cal-cell:nth-child(7n+8) .cal-day-num { color: #ef4444; }
+.cal-grid > .cal-cell:nth-child(7n+14) .cal-day-num { color: var(--cartel-blue); }
+
+/* ── 생일 칩 ── */
+.cal-bdays { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.cal-bday-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: rgba(37,99,235,.07);
+  font-size: .72rem;
+  min-width: 0;
+  transition: opacity .15s;
+  cursor: default;
+}
+.cal-bday-chip.is-graduated { opacity: .45; background: rgba(100,116,139,.07); }
+.cal-avatar {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cal-avatar-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .65rem;
+  font-weight: 700;
+  background: var(--cartel-blue);
+  color: #fff;
+}
+.cal-bday-name {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cal-grad-badge { font-size: .7rem; flex-shrink: 0; }
+
+/* ── 사이드바 ── */
+.cal-side-card {
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+}
+.cal-side-title {
+  font-size: .95rem;
+  font-weight: 700;
+  margin: 0 0 .75rem;
+  color: var(--text);
+}
+.cal-bday-list {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.cal-bday-row {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: background .12s;
+}
+.cal-bday-row:hover { background: var(--bg); }
+.cal-bday-row.is-graduated { opacity: .5; }
+.cal-bday-avatar-link { flex-shrink: 0; }
+.cal-side-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.cal-bday-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cal-bday-link {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-bday-link:hover { color: var(--cartel-blue); }
+.cal-grad-inline { font-size: .72rem; opacity: .65; margin-left: 3px; }
+.gen-badge {
+  font-size: .7rem;
+  color: var(--muted);
+}
+.cal-bday-date {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.cal-bday-days {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--cartel-blue);
+  flex-shrink: 0;
+  text-align: right;
+}
+.cal-bday-days.is-today-bd { color: #f59e0b; }
+.cal-upcoming-date { font-size: .72rem; color: var(--muted); }
+.cal-empty { font-size: .85rem; color: var(--muted); margin: 0; text-align: center; padding: .5rem 0; }
+</style>
+{% endblock %}

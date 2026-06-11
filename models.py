@@ -101,9 +101,11 @@ class Member(Base):
     skills     = Column(Text, default="[]")       # JSON: [{"skill":"Python","category":"개발"}]
     links      = Column(Text, default="[]")       # JSON: [{"label":"GitHub","url":"https://..."}]
     comment_muted_until = Column(DateTime, nullable=True)
-    generation  = Column(Integer, nullable=True)  # 기수 (1기, 2기, ...)
-    permissions = Column(Text, default="[]")      # JSON: 중간관리자 부여 권한 목록
-    created_at  = Column(DateTime, default=datetime.now)
+    generation   = Column(Integer, nullable=True)  # 기수 (1기, 2기, ...)
+    permissions  = Column(Text, default="[]")      # JSON: 중간관리자 부여 권한 목록
+    birthday     = Column(String(5),  nullable=True)   # "MM-DD" 형식 생일
+    is_graduated = Column(Boolean, default=False)      # 졸업 여부 (True면 캘린더에서 흐리게)
+    created_at   = Column(DateTime, default=datetime.now)
 
 
 class InviteCode(Base):

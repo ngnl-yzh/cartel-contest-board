@@ -160,6 +160,16 @@
                 </button>
                 {% endif %}
                 {% endif %}
+                {# 졸업 토글 #}
+                {% if is_admin %}
+                <form method="post" action="/admin/member/{{ m.id }}/toggle-graduated" style="display:inline">
+                  <button type="submit"
+                          class="btn btn-sm {% if m.is_graduated %}btn-outline{% else %}btn-ghost{% endif %}"
+                          title="{% if m.is_graduated %}졸업 취소 (캘린더 활성화){% else %}졸업 처리 (캘린더에서 흐리게){% endif %}">
+                    {% if m.is_graduated %}🎓 졸업 취소{% else %}졸업{% endif %}
+                  </button>
+                </form>
+                {% endif %}
                 <form method="post" action="/admin/members/{{ m.id }}/delete" data-confirm="{{ m.activity_name }} 회원을 삭제하시겠습니까?" style="display:inline">
                   <button type="submit" class="btn btn-danger btn-sm">삭제</button>
                 </form>
