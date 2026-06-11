@@ -16,7 +16,8 @@
     <div class="alert alert-error">{{ error }}</div>
     {% endif %}
 
-    <form method="post" action="/board/{{ board }}/post/{{ post.id }}/edit" class="post-form">
+    <form method="post" action="/board/{{ board }}/post/{{ post.id }}/edit"
+          class="post-form" enctype="multipart/form-data">
       <label class="field">
         <span>제목 <span class="required">*</span></span>
         <input type="text" name="title" required maxlength="200"
@@ -33,6 +34,32 @@
         <div class="preview-head">미리보기</div>
         <div id="postPreview" class="markdown-body"></div>
       </div>
+
+      {# 기존 이미지 관리 #}
+      {% set existing_imgs = post.images | fromjson %}
+      {% if existing_imgs %}
+      <div class="field">
+        <span style="font-size:.85rem;font-weight:600">첨부 이미지</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+          {% for img in existing_imgs %}
+          <div style="position:relative">
+            <img src="/uploads/{{ img }}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1.5px solid var(--line)">
+            <label style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border-radius:4px;padding:2px 5px;cursor:pointer;font-size:.7rem;color:#fff">
+              <input type="checkbox" name="delete_images" value="{{ img }}" style="display:none" onchange="this.parentElement.style.background=this.checked?'rgba(220,38,38,.8)':'rgba(0,0,0,.6)'">
+              ✕
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+        <small class="muted">✕ 클릭 시 빨간색으로 변한 이미지는 저장 시 삭제됩니다.</small>
+      </div>
+      {% endif %}
+
+      {# 새 이미지 추가 #}
+      <label class="field">
+        <span>이미지 추가</span>
+        <input type="file" name="images" accept="image/*" multiple style="font-size:.85rem">
+      </label>
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">수정 완료</button>

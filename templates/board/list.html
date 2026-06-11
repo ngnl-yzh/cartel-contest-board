@@ -92,7 +92,13 @@
     {% else %}
     <div class="empty-state">
       <p class="empty-text">아직 게시글이 없습니다.</p>
-      {% if current_member %}
+      {% if board == 'notice' %}
+        {% if is_privileged %}
+          <a href="/board/{{ board }}/new" class="btn btn-primary">📢 첫 공지 작성하기</a>
+        {% else %}
+          <p class="muted" style="font-size:.85rem">관리자가 등록한 공지가 여기에 표시됩니다.</p>
+        {% endif %}
+      {% elif current_member %}
         <a href="/board/{{ board }}/new" class="btn btn-primary">첫 글 작성하기</a>
       {% endif %}
     </div>

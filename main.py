@@ -20,12 +20,6 @@ def _today() -> date:
     """현재 KST 날짜 반환"""
     return datetime.now(_KST).date()
 
-def _today() -> date:
-    """현재 KST 날짜 반환"""
-    return datetime.now(_KST).date()
-# PLACEHOLDER_REMOVE
-    """현재 KST 시각을 naive datetime으로 반환 (DB 저장용)"""
-    return datetime.now(_KST).replace(tzinfo=None)
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -2156,7 +2150,12 @@ async def my_settings_page(request: Request, db: Session = Depends(get_db)):
     cm = _current_member(request, db)
     if not cm:
         return RedirectResponse(url="/member/login?next=/my/settings", status_code=303)
-    notif = _from_json(getattr(cm, "notif_settings", None) or "{}")
+    try:
+        notif = json.loads(getattr(cm, "notif_settings", None) or "{}")
+        if not isinstance(notif, dict):
+            notif = {}
+    except Exception:
+        notif = {}
     return _render(request, "my_settings.html", _ctx(request, db,
         notif=notif,
         saved=request.query_params.get("saved"),
@@ -2222,21 +2221,28 @@ async def personal_post_new(
     if not cm:
         return RedirectResponse(url="/member/login", status_code=303)
 
-    saved = []
-    for img in images:
-        if img and img.filename:
-            ext = img.filename.rsplit(".", 1)[-1].lower()
-            fname = f"pp_{cm.id}_{_now().strftime('%Y%m%d%H%M%S%f')}.{ext}"
-            path = UPLOAD_DIR / fname
-            with open(path, "wb") as f:
-                f.write(await img.read())
-            saved.append(fname)
+    # 이미지 5장 제한
+    valid_images = [img for img in images if img and img.filename][:5]
 
-    import json as _json
+    saved = []
+    for img in valid_images:
+        data = await img.read()
+        if len(data) > MAX_IMAGE_SIZE:
+            continue   # 10MB 초과 이미지 스킵
+        if not data:
+            continue
+        ext = img.filename.rsplit(".", 1)[-1].lower()
+        if ext not in {"jpg", "jpeg", "png", "gif", "webp"}:
+            continue
+        data, _ = _optimize_image(data)
+        fname = f"pp_{cm.id}_{uuid.uuid4().hex[:12]}.jpg"
+        _storage_upload(data, fname)
+        saved.append(fname)
+
     post = PersonalPost(
         member_id=cm.id,
-        caption=caption.strip(),
-        images=_json.dumps(saved),
+        caption=caption.strip()[:500],
+        images=json.dumps(saved, ensure_ascii=False),
     )
     db.add(post)
     db.commit()
@@ -3930,14 +3936,24 @@ async def my_follows(request: Request, db: Session = Depends(get_db)):
 # ════════════════════════════════════════════════════════════════════════════
 
 def _can_dm(db: Session, a_id: int, b_id: int) -> bool:
-    """a→b 또는 b→a 팔로우가 approved 상태이면 DM 가능"""
-    return bool(db.query(Follow).filter(
+    """a→b DM 가능 여부: 수신자(b)의 dm_allowed_from 설정 + 팔로우 상태 확인"""
+    receiver = db.query(Member).filter(Member.id == b_id).first()
+    if not receiver:
+        return False
+    dm_setting = getattr(receiver, "dm_allowed_from", "all") or "all"
+    if dm_setting == "none":
+        return False  # 수신 거부
+    mutual_follow = bool(db.query(Follow).filter(
         or_(
             and_(Follow.follower_id == a_id, Follow.following_id == b_id),
             and_(Follow.follower_id == b_id, Follow.following_id == a_id),
         ),
         Follow.status == "approved",
     ).first())
+    if dm_setting == "followers":
+        return mutual_follow  # 팔로워만 허용
+    # dm_setting == "all": 팔로우 관계 있으면 허용 (기존 동작 유지)
+    return mutual_follow
 
 
 @app.get("/dm", response_class=HTMLResponse)
@@ -5073,6 +5089,8 @@ async def board_edit_page(request: Request, board: str, post_id: int, db: Sessio
 async def board_edit_post(
     request: Request, board: str, post_id: int,
     title: str = Form(...), content: str = Form(""),
+    images: List[UploadFile] = File(default=[]),
+    delete_images: List[str] = Form(default=[]),
     db: Session = Depends(get_db),
 ):
     if board not in BOARDS:
@@ -5089,6 +5107,16 @@ async def board_edit_post(
         raise HTTPException(status_code=400, detail="본문은 10,000자를 초과할 수 없습니다.")
     post.title = title.strip()
     post.content = content
+    # 기존 이미지에서 삭제 요청 처리
+    existing = _from_json(post.images)
+    for del_img in delete_images:
+        if del_img in existing:
+            _storage_delete(del_img)
+            existing.remove(del_img)
+    # 새 이미지 추가
+    new_imgs = await _save_images(images)
+    existing.extend(new_imgs)
+    post.images = json.dumps(existing, ensure_ascii=False)
     post.updated_at = _now()
     db.commit()
     return RedirectResponse(url=f"/board/{board}/post/{post_id}", status_code=303)
