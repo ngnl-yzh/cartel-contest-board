@@ -1,60 +1,81 @@
 {% extends "base.html" %}
-{% block title %}생일 캘린더 · 공모전 보드{% endblock %}
+{% block title %}캘린더 · CARTEL{% endblock %}
 
 {% block content %}
 <main class="cal-page">
-  <div class="container" style="max-width:1100px">
+  <div class="container" style="max-width:1200px">
 
     {# ── 헤더 ── #}
-    <div class="page-heading" style="margin-bottom:1.5rem">
+    <div class="page-heading" style="margin-bottom:1.2rem">
       <div>
         <p class="eyebrow">CARTEL</p>
-        <h1>🎂 생일 캘린더</h1>
+        <h1>📅 캘린더</h1>
       </div>
-      <a href="/profile/edit/me#birthday" class="btn btn-outline">내 생일 등록</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="/profile/edit/me#birthday" class="btn btn-outline btn-sm">🎂 내 생일 등록</a>
+        {% if is_privileged %}
+        <button class="btn btn-primary btn-sm" onclick="openAddModal(null)">+ 일정 추가</button>
+        {% endif %}
+      </div>
     </div>
 
     <div class="cal-layout">
-      {# ── 캘린더 메인 ── #}
+
+      {# ════ 캘린더 메인 ════ #}
       <div class="cal-main">
 
-        {# 월 네비게이션 #}
+        {# 월 네비 #}
         <div class="cal-nav">
-          <a href="/calendar?month={{ prev_month }}" class="cal-nav-btn" title="이전 달">‹</a>
+          <a href="/calendar?month={{ prev_month }}" class="cal-nav-btn">‹</a>
           <span class="cal-nav-title">{{ year }}년 {{ month_name }}</span>
-          <a href="/calendar?month={{ next_month }}" class="cal-nav-btn" title="다음 달">›</a>
+          <a href="/calendar?month={{ next_month }}" class="cal-nav-btn">›</a>
         </div>
 
-        {# 요일 헤더 #}
-        <div class="cal-grid">
-          {% for dow in ["일","월","화","수","목","금","토"] %}
-          <div class="cal-dow {% if loop.index0 == 0 %}is-sun{% elif loop.index0 == 6 %}is-sat{% endif %}">{{ dow }}</div>
+        {# 달력 그리드 #}
+        <div class="cal-grid" id="calGrid">
+          {# 요일 헤더 #}
+          {% for dow, cls in [("일","sun"),("월",""),("화",""),("수",""),("목",""),("금",""),("토","sat")] %}
+          <div class="cal-dow {% if cls %}is-{{ cls }}{% endif %}">{{ dow }}</div>
           {% endfor %}
 
-          {# 날짜 셀 #}
           {% for week in cal_weeks %}
             {% for day in week %}
-            <div class="cal-cell {% if day == 0 %}is-empty{% endif %}
-                         {% if day == today.day and mon == today.month and year == today.year %}is-today{% endif %}
-                         {% if day != 0 and bd_map.get(day) %}has-bd{% endif %}">
+            {% set is_today = (day == today.day and mon == today.month and year == today.year) %}
+            {% set has_ev   = day != 0 and event_map.get(day) %}
+            {% set has_bd   = day != 0 and bd_map.get(day) %}
+            {% set has_gl   = day != 0 and gallery_map.get(day) %}
+            <div class="cal-cell
+                {% if day == 0 %}is-empty{% endif %}
+                {% if is_today %}is-today{% endif %}
+                {% if has_ev or has_bd or has_gl %}has-mark{% endif %}"
+                 {% if day != 0 %}onclick="selectDay({{ day }})" data-day="{{ day }}"{% endif %}>
               {% if day != 0 %}
               <span class="cal-day-num">{{ day }}</span>
-              {% if bd_map.get(day) %}
-              <div class="cal-bdays">
-                {% for m in bd_map[day] %}
-                <div class="cal-bday-chip {% if m.is_graduated %}is-graduated{% endif %}"
-                     title="{{ m.activity_name }}{% if m.is_graduated %} (졸업){% endif %}">
-                  {% if m.profile_image %}
-                    <img src="/uploads/{{ m.profile_image }}" alt="{{ m.activity_name }}" class="cal-avatar">
-                  {% else %}
-                    <span class="cal-avatar cal-avatar-initial">{{ m.activity_name[0] }}</span>
-                  {% endif %}
-                  <span class="cal-bday-name">{{ m.activity_name }}</span>
-                  {% if m.is_graduated %}<span class="cal-grad-badge">🎓</span>{% endif %}
+
+              {# 행사 칩 #}
+              {% if has_ev %}
+              <div class="cal-ev-chips">
+                {% for ev in event_map[day][:3] %}
+                {% set colors = {"정기모임":"#2563eb","공모전":"#f59e0b","행사":"#22c55e","MT":"#7c3aed","기타":"#64748b"} %}
+                <div class="cal-ev-chip" style="background:{{ colors.get(ev.event_type,'#64748b') }}20;border-left:3px solid {{ colors.get(ev.event_type,'#64748b') }}">
+                  <span class="cal-ev-chip-text">{{ ev.title }}</span>
                 </div>
                 {% endfor %}
+                {% if event_map[day]|length > 3 %}
+                <div class="cal-ev-more">+{{ event_map[day]|length - 3 }}</div>
+                {% endif %}
               </div>
               {% endif %}
+
+              {# 생일 + 갤러리 아이콘 #}
+              <div class="cal-cell-footer">
+                {% if has_bd %}
+                <span class="cal-bd-icon" title="{{ bd_map[day]|map(attribute='activity_name')|join(', ') }}">🎂×{{ bd_map[day]|length }}</span>
+                {% endif %}
+                {% if has_gl %}
+                <span class="cal-gl-icon" title="사진 {{ gallery_map[day]|length }}개">📷×{{ gallery_map[day]|length }}</span>
+                {% endif %}
+              </div>
               {% endif %}
             </div>
             {% endfor %}
@@ -62,28 +83,38 @@
         </div>{# /cal-grid #}
       </div>{# /cal-main #}
 
-      {# ── 사이드바 ── #}
+      {# ════ 사이드 패널 ════ #}
       <aside class="cal-side">
 
-        {# 이달의 생일 #}
-        <div class="cal-side-card">
+        {# ── 날짜 상세 (JS로 채워짐) ── #}
+        <div class="cal-side-card" id="dayPanel" style="display:none">
+          <div class="day-panel-header">
+            <span id="dayPanelTitle" class="cal-side-title"></span>
+            {% if is_privileged %}
+            <button class="btn btn-outline btn-xs" id="dayAddBtn" onclick="openAddFromPanel()">+ 추가</button>
+            {% endif %}
+          </div>
+          <div id="dayPanelContent"></div>
+        </div>
+
+        {# ── 이달 생일 ── #}
+        <div class="cal-side-card" {% if not this_month_bdays %}style="display:none"{% endif %} id="bDayCard">
           <h3 class="cal-side-title">🎉 {{ month_name }} 생일</h3>
           {% if this_month_bdays %}
           <ul class="cal-bday-list">
             {% for item in this_month_bdays %}
             {% set m = item.member %}
             <li class="cal-bday-row {% if m.is_graduated %}is-graduated{% endif %}">
-              <a href="/profile/{{ m.activity_name }}" class="cal-bday-avatar-link">
+              <a href="/profile/{{ m.activity_name }}">
                 {% if m.profile_image %}
-                  <img src="/uploads/{{ m.profile_image }}" class="cal-side-avatar" alt="{{ m.activity_name }}">
+                  <img src="/uploads/{{ m.profile_image }}" class="cal-side-avatar">
                 {% else %}
                   <span class="cal-side-avatar cal-avatar-initial">{{ m.activity_name[0] }}</span>
                 {% endif %}
               </a>
               <div class="cal-bday-info">
                 <a href="/profile/{{ m.activity_name }}" class="cal-bday-link">
-                  {{ m.activity_name }}
-                  {% if m.is_graduated %}<span class="cal-grad-inline">🎓 졸업</span>{% endif %}
+                  {{ m.activity_name }}{% if m.is_graduated %} <span style="font-size:.7rem;opacity:.5">🎓</span>{% endif %}
                 </a>
                 {% if m.generation %}<span class="gen-badge">{{ m.generation }}기</span>{% endif %}
               </div>
@@ -96,26 +127,23 @@
           {% endif %}
         </div>
 
-        {# 다가오는 생일 (30일 이내) #}
-        {% if upcoming %}
-        <div class="cal-side-card" style="margin-top:1rem">
-          <h3 class="cal-side-title">⏳ 다가오는 생일 <small style="font-size:.8rem;font-weight:400;opacity:.6">30일 이내</small></h3>
+        {# ── 다가오는 생일 ── #}
+        {% if upcoming_bd %}
+        <div class="cal-side-card">
+          <h3 class="cal-side-title">⏳ 다가오는 생일 <small style="font-size:.78rem;opacity:.55">30일 이내</small></h3>
           <ul class="cal-bday-list">
-            {% for item in upcoming %}
+            {% for item in upcoming_bd %}
             {% set m = item.member %}
             <li class="cal-bday-row {% if m.is_graduated %}is-graduated{% endif %}">
-              <a href="/profile/{{ m.activity_name }}" class="cal-bday-avatar-link">
+              <a href="/profile/{{ m.activity_name }}">
                 {% if m.profile_image %}
-                  <img src="/uploads/{{ m.profile_image }}" class="cal-side-avatar" alt="{{ m.activity_name }}">
+                  <img src="/uploads/{{ m.profile_image }}" class="cal-side-avatar">
                 {% else %}
                   <span class="cal-side-avatar cal-avatar-initial">{{ m.activity_name[0] }}</span>
                 {% endif %}
               </a>
               <div class="cal-bday-info">
-                <a href="/profile/{{ m.activity_name }}" class="cal-bday-link">
-                  {{ m.activity_name }}
-                  {% if m.is_graduated %}<span class="cal-grad-inline">🎓</span>{% endif %}
-                </a>
+                <a href="/profile/{{ m.activity_name }}" class="cal-bday-link">{{ m.activity_name }}</a>
                 <span class="cal-upcoming-date">{{ item.date.strftime('%m/%d') }}</span>
               </div>
               <span class="cal-bday-days {% if item.days == 0 %}is-today-bd{% endif %}">
@@ -129,53 +157,233 @@
 
       </aside>
     </div>{# /cal-layout #}
-
   </div>
 </main>
+
+{# ══════════════════════ 관리자 모달 ══════════════════════ #}
+{% if is_privileged %}
+<div id="calModal" class="cal-modal-bg" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="cal-modal">
+    <div class="cal-modal-header">
+      <h3 id="calModalTitle">일정 추가</h3>
+      <button class="cal-modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="calModalForm" method="post" action="/admin/calendar/add">
+      <input type="hidden" name="redirect_month" value="{{ year }}-{{ '%02d'|format(mon) }}">
+      <input type="hidden" id="calEventId" value="">
+
+      <div class="form-grid two-col" style="gap:10px">
+        <label class="field">
+          <span>시작일 <span class="required">*</span></span>
+          <input type="date" name="start_date" id="calStartDate" required>
+        </label>
+        <label class="field">
+          <span>종료일 <small>(기간 일정)</small></span>
+          <input type="date" name="end_date" id="calEndDate">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>제목 <span class="required">*</span></span>
+        <input type="text" name="title" id="calTitle" required maxlength="200" placeholder="일정 제목">
+      </label>
+
+      <label class="field">
+        <span>유형</span>
+        <select name="event_type" id="calEventType" class="compact-select">
+          <option value="정기모임">정기모임</option>
+          <option value="공모전">공모전</option>
+          <option value="행사">행사</option>
+          <option value="MT">MT</option>
+          <option value="기타" selected>기타</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>내용 <small>(선택)</small></span>
+        <textarea name="description" id="calDesc" rows="3" maxlength="1000" placeholder="세부 내용"></textarea>
+      </label>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:.5rem">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">취소</button>
+        <button type="submit" class="btn btn-primary" id="calModalSubmit">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════ 데이터 + JS ══════════ #}
+<script>
+const DAY_DATA = {{ day_data_json | safe }};
+const IS_PRIV  = {{ 'true' if is_privileged else 'false' }};
+const CUR_MONTH = '{{ "%04d-%02d"|format(year, mon) }}';
+let _selectedDay = null;
+
+// ── 날짜 클릭 ──────────────────────────────────────────────────────────────
+function selectDay(day) {
+  _selectedDay = day;
+  document.querySelectorAll('.cal-cell.is-selected').forEach(c => c.classList.remove('is-selected'));
+  const cell = document.querySelector('.cal-cell[data-day="'+day+'"]');
+  if (cell) cell.classList.add('is-selected');
+
+  const panel = document.getElementById('dayPanel');
+  const title = document.getElementById('dayPanelTitle');
+  const content = document.getElementById('dayPanelContent');
+
+  const dd = DAY_DATA[String(day)] || {events:[], birthdays:[], gallery:[]};
+  const [y, m] = CUR_MONTH.split('-');
+  title.textContent = y + '년 ' + parseInt(m) + '월 ' + day + '일';
+
+  let html = '';
+
+  // 행사
+  if (dd.events.length) {
+    html += '<div class="dp-section"><div class="dp-section-label">📌 행사</div>';
+    dd.events.forEach(ev => {
+      const range = ev.end && ev.end !== ev.start ? ev.start + ' ~ ' + ev.end : ev.start;
+      html += `<div class="dp-event" style="border-left:3px solid ${ev.color}">
+        <div class="dp-ev-header">
+          <span class="dp-ev-type" style="background:${ev.color}20;color:${ev.color}">${ev.type}</span>
+          <strong class="dp-ev-title">${ev.title}</strong>
+          ${IS_PRIV ? `<div class="dp-ev-actions">
+            <button class="btn btn-ghost btn-xs" onclick="openEditModal(${ev.id},'${ev.title.replace(/'/g,"\\'")}','${ev.type}','${ev.start}','${ev.end}',\`${ev.desc.replace(/`/g,'\\`')}\`)">수정</button>
+            <button class="btn btn-danger btn-xs" onclick="deleteEvent(${ev.id})">삭제</button>
+          </div>` : ''}
+        </div>
+        <div class="dp-ev-date">${range}</div>
+        ${ev.desc ? '<div class="dp-ev-desc">' + ev.desc.replace(/\n/g,'<br>') + '</div>' : ''}
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // 생일
+  if (dd.birthdays.length) {
+    html += '<div class="dp-section"><div class="dp-section-label">🎂 생일</div><div class="dp-bd-list">';
+    dd.birthdays.forEach(b => {
+      const opacity = b.graduated ? ' style="opacity:.5"' : '';
+      const avatar = b.img
+        ? `<img src="${b.img}" class="dp-avatar">`
+        : `<span class="dp-avatar dp-avatar-init">${b.initial}</span>`;
+      html += `<a href="${b.url}" class="dp-bd-item"${opacity}>
+        ${avatar}
+        <span class="dp-bd-name">${b.name}${b.graduated ? ' 🎓' : ''}${b.gen ? ' <small>'+b.gen+'기</small>' : ''}</span>
+      </a>`;
+    });
+    html += '</div></div>';
+  }
+
+  // 갤러리
+  if (dd.gallery.length) {
+    html += '<div class="dp-section"><div class="dp-section-label">📷 갤러리</div><div class="dp-gallery-grid">';
+    dd.gallery.forEach(gp => {
+      const hidden = !gp.show ? ' dp-gallery-hidden' : '';
+      const url = '/gallery#post-' + gp.id;
+      html += `<a href="${url}" class="dp-gallery-item${hidden}" title="${gp.title}">
+        ${gp.thumb ? `<img src="/uploads/${gp.thumb}" class="dp-gallery-thumb">` : `<div class="dp-gallery-no-img">📷</div>`}
+        <span class="dp-gallery-cnt">${gp.count}장</span>
+        ${IS_PRIV ? `<form method="post" action="/admin/gallery-post/${gp.id}/toggle-calendar" style="display:contents" onclick="event.stopPropagation()">
+          <button type="submit" class="dp-gallery-eye" title="${gp.show ? '캘린더에서 숨기기':'캘린더에 표시'}">${gp.show ? '👁':'🙈'}</button>
+        </form>` : ''}
+      </a>`;
+    });
+    html += '</div></div>';
+  }
+
+  if (!html) {
+    html = '<p class="cal-empty">이날 등록된 항목이 없어요.</p>';
+  }
+
+  content.innerHTML = html;
+  panel.style.display = 'block';
+  // 모바일: 패널로 스크롤
+  if (window.innerWidth < 900) {
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+
+// ── 관리자 모달 ──────────────────────────────────────────────────────────────
+{% if is_privileged %}
+function openAddModal(day) {
+  const d = day || _selectedDay;
+  const [y, m] = CUR_MONTH.split('-');
+  const dateStr = d ? `${y}-${m}-${String(d).padStart(2,'0')}` : '';
+  document.getElementById('calModalTitle').textContent = '일정 추가';
+  document.getElementById('calModalForm').action = '/admin/calendar/add';
+  document.getElementById('calEventId').value = '';
+  document.getElementById('calStartDate').value = dateStr;
+  document.getElementById('calEndDate').value = '';
+  document.getElementById('calTitle').value = '';
+  document.getElementById('calEventType').value = '기타';
+  document.getElementById('calDesc').value = '';
+  document.getElementById('calModalSubmit').textContent = '추가';
+  document.getElementById('calModal').style.display = 'flex';
+}
+
+function openAddFromPanel() {
+  openAddModal(_selectedDay);
+}
+
+function openEditModal(id, title, type, start, end, desc) {
+  document.getElementById('calModalTitle').textContent = '일정 수정';
+  document.getElementById('calModalForm').action = '/admin/calendar/' + id + '/edit';
+  document.getElementById('calEventId').value = id;
+  document.getElementById('calStartDate').value = start;
+  document.getElementById('calEndDate').value = end || '';
+  document.getElementById('calTitle').value = title;
+  document.getElementById('calEventType').value = type;
+  document.getElementById('calDesc').value = desc;
+  document.getElementById('calModalSubmit').textContent = '저장';
+  document.getElementById('calModal').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('calModal').style.display = 'none';
+}
+
+function deleteEvent(id) {
+  if (!confirm('이 일정을 삭제하시겠습니까?')) return;
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.action = '/admin/calendar/' + id + '/delete';
+  const inp = document.createElement('input');
+  inp.type = 'hidden'; inp.name = 'redirect_month'; inp.value = CUR_MONTH;
+  form.appendChild(inp);
+  document.body.appendChild(form);
+  form.submit();
+}
+{% endif %}
+</script>
 
 <style>
 /* ── 레이아웃 ── */
 .cal-page { padding: 2rem 0 4rem; }
 .cal-layout {
   display: grid;
-  grid-template-columns: 1fr 260px;
+  grid-template-columns: 1fr 280px;
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .cal-layout { grid-template-columns: 1fr; }
-  .cal-side { order: -1; }
 }
 
 /* ── 월 네비 ── */
 .cal-nav {
-  display: flex;
-  align-items: center;
+  display: flex; align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
-  gap: .75rem;
+  margin-bottom: .8rem; gap: .5rem;
 }
-.cal-nav-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-}
+.cal-nav-title { font-size: 1.2rem; font-weight: 700; }
 .cal-nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px; height: 36px;
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1.5px solid var(--line);
-  font-size: 1.2rem;
-  color: var(--text);
-  text-decoration: none;
-  transition: background .15s, border-color .15s;
-  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px;
+  background: var(--surface); border: 1.5px solid var(--line);
+  font-size: 1.1rem; color: var(--text); text-decoration: none;
+  transition: .15s;
 }
-.cal-nav-btn:hover { background: var(--bg); border-color: var(--cartel-blue); color: var(--cartel-blue); }
+.cal-nav-btn:hover { border-color: var(--cartel-blue); color: var(--cartel-blue); }
 
 /* ── 달력 그리드 ── */
 .cal-grid {
@@ -189,161 +397,164 @@
 }
 .cal-dow {
   background: var(--surface);
-  text-align: center;
-  font-size: .78rem;
-  font-weight: 700;
-  padding: 8px 4px;
-  color: var(--muted);
-  letter-spacing: .04em;
+  text-align: center; font-size: .75rem; font-weight: 700;
+  padding: 7px 2px; color: var(--muted); letter-spacing: .04em;
 }
 .cal-dow.is-sun { color: #ef4444; }
 .cal-dow.is-sat { color: var(--cartel-blue); }
 
 .cal-cell {
   background: var(--surface);
-  min-height: 80px;
-  padding: 6px 6px 4px;
+  min-height: 76px;
+  padding: 5px 5px 3px;
+  cursor: pointer;
+  transition: background .1s;
   position: relative;
-  transition: background .12s;
-  vertical-align: top;
 }
-.cal-cell.is-empty { background: var(--bg); min-height: 80px; }
-.cal-cell.is-today { background: rgba(37,99,235,.05); }
+.cal-cell:hover:not(.is-empty) { background: rgba(37,99,235,.04); }
+.cal-cell.is-selected { background: rgba(37,99,235,.08) !important; outline: 2px solid var(--cartel-blue); outline-offset: -2px; }
+.cal-cell.is-empty { background: var(--bg); cursor: default; }
 .cal-cell.is-today .cal-day-num {
-  background: var(--cartel-blue);
-  color: #fff;
-  border-radius: 50%;
-  width: 22px; height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  background: var(--cartel-blue); color: #fff;
+  border-radius: 50%; width: 20px; height: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.cal-cell.has-bd { background: rgba(250,204,21,.04); }
+.cal-day-num { font-size: .78rem; font-weight: 600; color: var(--muted); display: inline-block; margin-bottom: 2px; }
 
-.cal-day-num {
-  font-size: .8rem;
-  font-weight: 600;
-  color: var(--muted);
-  display: inline-block;
-  margin-bottom: 2px;
-}
-/* 일요일: 1번째 칸 */
-.cal-grid > .cal-cell:nth-child(7n+8) .cal-day-num { color: #ef4444; }
-.cal-grid > .cal-cell:nth-child(7n+14) .cal-day-num { color: var(--cartel-blue); }
+/* 일/토 색상 */
+.cal-grid > .cal-dow:nth-child(1) ~ .cal-cell:nth-child(7n+8) .cal-day-num { color: #ef4444; }
 
-/* ── 생일 칩 ── */
-.cal-bdays { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
-.cal-bday-chip {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  border-radius: 6px;
-  background: rgba(37,99,235,.07);
-  font-size: .72rem;
-  min-width: 0;
-  transition: opacity .15s;
-  cursor: default;
+/* ── 행사 칩 ── */
+.cal-ev-chips { display: flex; flex-direction: column; gap: 2px; }
+.cal-ev-chip {
+  padding: 1px 4px; border-radius: 3px;
+  font-size: .66rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.cal-bday-chip.is-graduated { opacity: .45; background: rgba(100,116,139,.07); }
-.cal-avatar {
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
+.cal-ev-chip-text { color: var(--text); }
+.cal-ev-more { font-size: .65rem; color: var(--muted); padding-left: 4px; }
+
+/* ── 셀 하단 아이콘 ── */
+.cal-cell-footer {
+  position: absolute; bottom: 3px; right: 4px;
+  display: flex; gap: 3px; align-items: center;
 }
-.cal-avatar-initial {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .65rem;
-  font-weight: 700;
-  background: var(--cartel-blue);
-  color: #fff;
+.cal-bd-icon, .cal-gl-icon {
+  font-size: .6rem; color: var(--muted);
+  background: var(--bg); border-radius: 4px;
+  padding: 0 3px;
 }
-.cal-bday-name {
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.cal-grad-badge { font-size: .7rem; flex-shrink: 0; }
 
 /* ── 사이드바 ── */
+.cal-side { display: flex; flex-direction: column; gap: 1rem; }
 .cal-side-card {
   background: var(--surface);
   border: 1.5px solid var(--line);
   border-radius: 14px;
-  padding: 1rem 1.1rem;
+  padding: .9rem 1rem;
 }
-.cal-side-title {
-  font-size: .95rem;
-  font-weight: 700;
-  margin: 0 0 .75rem;
-  color: var(--text);
+.cal-side-title { font-size: .9rem; font-weight: 700; margin: 0 0 .65rem; }
+.day-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .65rem; }
+.day-panel-header .cal-side-title { margin: 0; }
+
+/* ── Day Panel 내용 ── */
+.dp-section { margin-bottom: .8rem; }
+.dp-section:last-child { margin-bottom: 0; }
+.dp-section-label { font-size: .72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .4rem; }
+.dp-event {
+  padding: 6px 8px; border-radius: 8px;
+  background: var(--bg); margin-bottom: 6px;
 }
-.cal-bday-list {
-  list-style: none;
-  margin: 0; padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: .55rem;
+.dp-ev-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dp-ev-type { font-size: .68rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+.dp-ev-title { font-size: .85rem; font-weight: 700; flex: 1; }
+.dp-ev-actions { display: flex; gap: 4px; margin-left: auto; }
+.dp-ev-date { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+.dp-ev-desc { font-size: .8rem; color: var(--text); margin-top: 4px; line-height: 1.45; }
+
+.dp-bd-list { display: flex; flex-direction: column; gap: 5px; }
+.dp-bd-item {
+  display: flex; align-items: center; gap: 7px;
+  text-decoration: none; color: var(--text);
+  padding: 3px 5px; border-radius: 7px;
+  transition: background .1s;
 }
+.dp-bd-item:hover { background: var(--bg); }
+.dp-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.dp-avatar-init {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .7rem; font-weight: 700;
+  background: var(--cartel-blue); color: #fff;
+}
+.dp-bd-name { font-size: .82rem; font-weight: 600; }
+.dp-bd-name small { font-weight: 400; color: var(--muted); }
+
+.dp-gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.dp-gallery-item {
+  position: relative; border-radius: 7px; overflow: hidden;
+  aspect-ratio: 1; text-decoration: none;
+  background: var(--bg); display: flex; align-items: center; justify-content: center;
+  transition: opacity .15s;
+}
+.dp-gallery-item:hover { opacity: .85; }
+.dp-gallery-hidden { opacity: .35; }
+.dp-gallery-thumb { width: 100%; height: 100%; object-fit: cover; }
+.dp-gallery-no-img { font-size: 1.4rem; color: var(--muted); }
+.dp-gallery-cnt {
+  position: absolute; bottom: 2px; right: 4px;
+  font-size: .6rem; font-weight: 700; color: #fff;
+  background: rgba(0,0,0,.5); border-radius: 3px; padding: 0 3px;
+}
+.dp-gallery-eye {
+  position: absolute; top: 2px; right: 3px;
+  background: rgba(0,0,0,.4); border: none; border-radius: 4px;
+  font-size: .7rem; cursor: pointer; padding: 1px 3px;
+  opacity: 0; transition: opacity .15s;
+}
+.dp-gallery-item:hover .dp-gallery-eye { opacity: 1; }
+
+/* ── 이달 생일 사이드 ── */
+.cal-bday-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
 .cal-bday-row {
-  display: flex;
-  align-items: center;
-  gap: .55rem;
-  padding: 4px 6px;
-  border-radius: 8px;
-  transition: background .12s;
+  display: flex; align-items: center; gap: .5rem;
+  padding: 3px 5px; border-radius: 7px; transition: background .1s;
 }
 .cal-bday-row:hover { background: var(--bg); }
 .cal-bday-row.is-graduated { opacity: .5; }
-.cal-bday-avatar-link { flex-shrink: 0; }
 .cal-side-avatar {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
+  width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: block; flex-shrink: 0;
 }
-.cal-bday-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.cal-avatar-initial {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .65rem; font-weight: 700; background: var(--cartel-blue); color: #fff;
 }
-.cal-bday-link {
-  font-size: .85rem;
-  font-weight: 600;
-  color: var(--text);
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.cal-bday-info { flex: 1; min-width: 0; }
+.cal-bday-link { font-size: .82rem; font-weight: 600; color: var(--text); text-decoration: none; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-bday-link:hover { color: var(--cartel-blue); }
-.cal-grad-inline { font-size: .72rem; opacity: .65; margin-left: 3px; }
-.gen-badge {
-  font-size: .7rem;
-  color: var(--muted);
-}
-.cal-bday-date {
-  font-size: .8rem;
-  font-weight: 600;
-  color: var(--muted);
-  flex-shrink: 0;
-}
-.cal-bday-days {
-  font-size: .75rem;
-  font-weight: 700;
-  color: var(--cartel-blue);
-  flex-shrink: 0;
-  text-align: right;
-}
+.gen-badge { font-size: .68rem; color: var(--muted); }
+.cal-bday-date { font-size: .78rem; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+.cal-bday-days { font-size: .75rem; font-weight: 700; color: var(--cartel-blue); flex-shrink: 0; }
 .cal-bday-days.is-today-bd { color: #f59e0b; }
-.cal-upcoming-date { font-size: .72rem; color: var(--muted); }
-.cal-empty { font-size: .85rem; color: var(--muted); margin: 0; text-align: center; padding: .5rem 0; }
+.cal-upcoming-date { font-size: .7rem; color: var(--muted); display: block; }
+.cal-empty { font-size: .82rem; color: var(--muted); text-align: center; padding: .4rem 0; margin: 0; }
+
+/* ── 모달 ── */
+.cal-modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 1rem;
+}
+.cal-modal {
+  background: var(--surface); border-radius: 16px;
+  padding: 1.5rem; width: 100%; max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+.cal-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; }
+.cal-modal-header h3 { margin: 0; font-size: 1.05rem; }
+.cal-modal-close {
+  background: none; border: none; font-size: 1.1rem; cursor: pointer;
+  color: var(--muted); padding: 4px 8px; border-radius: 6px;
+}
+.cal-modal-close:hover { background: var(--bg); }
 </style>
 {% endblock %}

@@ -95,6 +95,7 @@
               <th style="width:80px">학번</th>
               <th style="width:90px">역할</th>
               <th style="width:82px">가입일</th>
+              <th style="width:130px">생일</th>
               <th>관리</th>
             </tr>
           </thead>
@@ -140,6 +141,30 @@
                 {% endif %}
               </td>
               <td style="font-size:.8rem">{{ m.created_at.strftime('%y.%m.%d') }}</td>
+              <td>
+                <form method="post" action="/admin/member/{{ m.id }}/set-birthday"
+                      style="display:flex;align-items:center;gap:3px">
+                  <select name="birthday_month" class="compact-select" style="width:60px;font-size:.75rem">
+                    <option value="">월</option>
+                    {% for mo in range(1,13) %}
+                    <option value="{{ mo }}"
+                      {% if m.birthday and m.birthday[:2]|int == mo %}selected{% endif %}>
+                      {{ mo }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <select name="birthday_day" class="compact-select" style="width:55px;font-size:.75rem">
+                    <option value="">일</option>
+                    {% for dy in range(1,32) %}
+                    <option value="{{ dy }}"
+                      {% if m.birthday and m.birthday[3:]|int == dy %}selected{% endif %}>
+                      {{ dy }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-ghost btn-xs" title="생일 저장">✓</button>
+                </form>
+              </td>
               <td class="table-actions">
                 {% if is_admin %}
                 <form method="post" action="/admin/members/{{ m.id }}/set-role" style="display:inline">

@@ -52,6 +52,20 @@
         <input type="password" name="password" placeholder="6자 이상" required minlength="6">
       </label>
 
+      <div class="field">
+        <span>생일 <span class="required">*</span> <small style="font-weight:400;opacity:.65">연도는 저장되지 않아요</small></span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select name="birthday_month" class="compact-select" style="width:90px" required>
+            <option value="">월</option>
+            {% for m in range(1,13) %}<option value="{{ m }}">{{ m }}월</option>{% endfor %}
+          </select>
+          <select name="birthday_day" class="compact-select" style="width:80px" required>
+            <option value="">일</option>
+            {% for d in range(1,32) %}<option value="{{ d }}">{{ d }}일</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
       <label class="field">
         <span>한 줄 소개 <small>(선택)</small></span>
         <textarea name="bio" rows="2" placeholder="간단한 자기소개" maxlength="200"></textarea>

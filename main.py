@@ -57,6 +57,7 @@ from models import (
     JobCrawlSession, JobPosting, Member,
     DirectMessage, ExternalAchievement, Follow, Notification,
     Post, PostLike,
+    CalendarEvent,
     GalleryPost, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
 )
 
@@ -2611,6 +2612,7 @@ async def register(
     invite_code: str = Form(...), activity_name: str = Form(...), real_name: str = Form(...),
     student_id: str = Form(""), phone: str = Form(""),
     password: str = Form(...), bio: str = Form(""),
+    birthday_month: str = Form(""), birthday_day: str = Form(""),
     db: Session = Depends(get_db),
 ):
     def err(msg):
@@ -2634,12 +2636,23 @@ async def register(
     if len(password) < 6:
         return err("비밀번호는 최소 6자 이상이어야 합니다.")
 
+    # 생일 처리
+    _birthday = None
+    if birthday_month and birthday_day:
+        try:
+            _mm = int(birthday_month); _dd = int(birthday_day)
+            if 1 <= _mm <= 12 and 1 <= _dd <= 31:
+                _birthday = f"{_mm:02d}-{_dd:02d}"
+        except ValueError:
+            pass
+
     member = Member(
         activity_name=activity_name.strip(), real_name=real_name.strip(),
         student_id=student_id.strip(), phone=phone.strip(),
         password_hash=hash_password(password), bio=bio.strip(),
         invite_code_used=invite_code.strip(),
         generation=code_obj.generation if code_obj.generation else None,
+        birthday=_birthday,
     )
     db.add(member)
     db.flush()
@@ -2878,16 +2891,23 @@ async def profile_edit(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  생일 캘린더
+#  캘린더 (행사 일정 + 생일 + 갤러리 연동)
 # ════════════════════════════════════════════════════════════════════════════
 
+def _cal_month_bounds(year: int, mon: int):
+    """해당 월의 첫날·마지막날 반환"""
+    import calendar as _c
+    last_day = _c.monthrange(year, mon)[1]
+    return date(year, mon, 1), date(year, mon, last_day)
+
+
 @app.get("/calendar", response_class=HTMLResponse)
-async def birthday_calendar(
+async def calendar_page(
     request: Request,
     month: str = "",
     db: Session = Depends(get_db),
 ):
-    """생일 캘린더 — 로그인한 회원만 접근 가능"""
+    """행사 캘린더 + 생일 — 로그인한 회원만 접근"""
     cm = _current_member(request, db)
     if not cm:
         return RedirectResponse(url="/member/login", status_code=303)
@@ -2903,7 +2923,8 @@ async def birthday_calendar(
     else:
         year, mon = today.year, today.month
 
-    # 이전/다음 달 계산
+    month_start, month_end = _cal_month_bounds(year, mon)
+
     if mon == 1:
         prev_year, prev_mon = year - 1, 12
     else:
@@ -2913,14 +2934,33 @@ async def birthday_calendar(
     else:
         next_year, next_mon = year, mon + 1
 
-    # 생일이 있는 전체 회원
-    all_members = db.query(Member).filter(
+    # ── 행사 일정 (달에 걸쳐있는 것 포함) ──────────────────────────────────
+    events_raw = db.query(CalendarEvent).filter(
+        or_(
+            and_(CalendarEvent.start_date >= month_start, CalendarEvent.start_date <= month_end),
+            and_(CalendarEvent.end_date   >= month_start, CalendarEvent.end_date   <= month_end),
+            and_(CalendarEvent.start_date <= month_start, CalendarEvent.end_date   >= month_end),
+        )
+    ).order_by(CalendarEvent.start_date).all()
+
+    # 이벤트 맵: {day: [event, ...]}  (기간 이벤트는 각 날짜에 중복 배치)
+    event_map: dict[int, list] = {}
+    for ev in events_raw:
+        d = max(ev.start_date, month_start)
+        end = min(ev.end_date or ev.start_date, month_end)
+        cur = d
+        while cur <= end:
+            if cur.month == mon:
+                event_map.setdefault(cur.day, []).append(ev)
+            cur += timedelta(days=1)
+
+    # ── 생일 ──────────────────────────────────────────────────────────────
+    all_bd_members = db.query(Member).filter(
         Member.birthday.isnot(None), Member.birthday != ""
     ).order_by(Member.birthday).all()
 
-    # 이번 달 생일 맵: {일: [member, ...]}
     bd_map: dict[int, list] = {}
-    for m in all_members:
+    for m in all_bd_members:
         try:
             mm, dd = map(int, m.birthday.split("-"))
             if mm == mon:
@@ -2928,23 +2968,36 @@ async def birthday_calendar(
         except Exception:
             pass
 
-    # 달력 그리드 (주 단위 리스트, 0=빈칸)
+    # ── 갤러리 연동 ────────────────────────────────────────────────────────
+    gallery_raw = db.query(GalleryPost).filter(
+        GalleryPost.is_easter.is_(False),
+        GalleryPost.is_public.isnot(False),
+        GalleryPost.show_on_calendar.isnot(False),
+        GalleryPost.event_date.isnot(None),
+        GalleryPost.event_date >= month_start,
+        GalleryPost.event_date <= month_end,
+    ).order_by(GalleryPost.event_date).all()
+
+    gallery_map: dict[int, list] = {}
+    for gp in gallery_raw:
+        gallery_map.setdefault(gp.event_date.day, []).append(gp)
+
+    # ── 달력 그리드 ────────────────────────────────────────────────────────
     import calendar as _cal
-    _cal.setfirstweekday(6)   # 일요일 시작
+    _cal.setfirstweekday(6)  # 일요일 시작
     cal_weeks = _cal.monthcalendar(year, mon)
 
-    # 이달 생일 목록 (날짜 순)
+    # ── 이달 생일 목록 ──────────────────────────────────────────────────────
     this_month_bdays = []
     for day in sorted(bd_map.keys()):
         for m in bd_map[day]:
             this_month_bdays.append({"day": day, "member": m})
 
-    # 다음 30일 이내 생일 (모든 달 대상)
-    upcoming = []
-    for m in all_members:
+    # ── 다음 30일 이내 생일 ─────────────────────────────────────────────────
+    upcoming_bd = []
+    for m in all_bd_members:
         try:
             mm, dd = map(int, m.birthday.split("-"))
-            # 올해 날짜로 변환
             try:
                 bd_this = date(today.year, mm, dd)
             except ValueError:
@@ -2953,24 +3006,199 @@ async def birthday_calendar(
                 bd_this = date(today.year + 1, mm, dd)
             delta = (bd_this - today).days
             if 0 <= delta <= 30:
-                upcoming.append({"days": delta, "date": bd_this, "member": m})
+                upcoming_bd.append({"days": delta, "date": bd_this, "member": m})
         except Exception:
             pass
-    upcoming.sort(key=lambda x: x["days"])
+    upcoming_bd.sort(key=lambda x: x["days"])
+
+    # ── JSON 직렬화 (JS 클릭 패널용) ───────────────────────────────────────
+    _ET_COLORS = {
+        "정기모임": "#2563eb", "공모전": "#f59e0b",
+        "행사": "#22c55e",     "MT": "#7c3aed",  "기타": "#64748b",
+    }
+    day_data: dict[str, dict] = {}
+    all_days = set(event_map) | set(bd_map) | set(gallery_map)
+    for d in all_days:
+        evs = event_map.get(d, [])
+        bds = bd_map.get(d, [])
+        gps = gallery_map.get(d, [])
+        day_data[str(d)] = {
+            "events": [
+                {
+                    "id":    ev.id,
+                    "title": ev.title,
+                    "type":  ev.event_type,
+                    "color": _ET_COLORS.get(ev.event_type, "#64748b"),
+                    "desc":  ev.description or "",
+                    "start": ev.start_date.isoformat(),
+                    "end":   ev.end_date.isoformat() if ev.end_date else "",
+                }
+                for ev in evs
+            ],
+            "birthdays": [
+                {
+                    "name":     m.activity_name,
+                    "url":      f"/profile/{m.activity_name}",
+                    "img":      f"/uploads/{m.profile_image}" if m.profile_image else "",
+                    "initial":  m.activity_name[0],
+                    "gen":      m.generation or "",
+                    "graduated": bool(m.is_graduated),
+                }
+                for m in bds
+            ],
+            "gallery": [
+                {
+                    "id":     gp.id,
+                    "title":  gp.title,
+                    "thumb":  json.loads(gp.images)[0] if gp.images and json.loads(gp.images) else "",
+                    "count":  len(json.loads(gp.images)) if gp.images else 0,
+                    "is_easter": bool(gp.is_easter),
+                    "show":   bool(gp.show_on_calendar) if gp.show_on_calendar is not None else True,
+                }
+                for gp in gps
+            ],
+        }
 
     month_names = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"]
 
     return _render(request, "calendar.html", _ctx(request, db,
         year=year, mon=mon,
         cal_weeks=cal_weeks,
+        event_map=event_map,
         bd_map=bd_map,
+        gallery_map=gallery_map,
         today=today,
         prev_month=f"{prev_year:04d}-{prev_mon:02d}",
         next_month=f"{next_year:04d}-{next_mon:02d}",
         month_name=month_names[mon - 1],
         this_month_bdays=this_month_bdays,
-        upcoming=upcoming,
+        upcoming_bd=upcoming_bd,
+        day_data_json=json.dumps(day_data, ensure_ascii=False),
+        et_colors=_ET_COLORS,
     ))
+
+
+# ── 관리자 캘린더 일정 CRUD ──────────────────────────────────────────────────
+
+@app.post("/admin/calendar/add")
+async def admin_calendar_add(
+    request: Request,
+    title:      str = Form(...),
+    event_type: str = Form("기타"),
+    start_date: str = Form(...),
+    end_date:   str = Form(""),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if r := _privileged_redirect(request, db):
+        return r
+    try:
+        sd = date.fromisoformat(start_date)
+        ed = date.fromisoformat(end_date) if end_date.strip() else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식이 올바르지 않습니다.")
+    cm = _current_member(request, db)
+    ev = CalendarEvent(
+        title=title.strip(), event_type=event_type,
+        start_date=sd, end_date=ed,
+        description=description.strip(),
+        created_by_id=cm.id if cm else None,
+        created_at=_now(),
+    )
+    db.add(ev); db.commit()
+    back = f"/calendar?month={sd.year:04d}-{sd.month:02d}"
+    return RedirectResponse(url=back, status_code=303)
+
+
+@app.post("/admin/calendar/{event_id}/edit")
+async def admin_calendar_edit(
+    request: Request,
+    event_id:   int,
+    title:      str = Form(...),
+    event_type: str = Form("기타"),
+    start_date: str = Form(...),
+    end_date:   str = Form(""),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if r := _privileged_redirect(request, db):
+        return r
+    ev = db.query(CalendarEvent).filter(CalendarEvent.id == event_id).first()
+    if not ev:
+        raise HTTPException(status_code=404)
+    try:
+        ev.start_date = date.fromisoformat(start_date)
+        ev.end_date   = date.fromisoformat(end_date) if end_date.strip() else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식이 올바르지 않습니다.")
+    ev.title = title.strip(); ev.event_type = event_type; ev.description = description.strip()
+    db.commit()
+    back = f"/calendar?month={ev.start_date.year:04d}-{ev.start_date.month:02d}"
+    return RedirectResponse(url=back, status_code=303)
+
+
+@app.post("/admin/calendar/{event_id}/delete")
+async def admin_calendar_delete(
+    request: Request,
+    event_id: int,
+    redirect_month: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if r := _privileged_redirect(request, db):
+        return r
+    ev = db.query(CalendarEvent).filter(CalendarEvent.id == event_id).first()
+    if ev:
+        back_month = redirect_month or f"{ev.start_date.year:04d}-{ev.start_date.month:02d}"
+        db.delete(ev); db.commit()
+    else:
+        back_month = redirect_month
+    return RedirectResponse(url=f"/calendar?month={back_month}", status_code=303)
+
+
+@app.post("/admin/gallery-post/{post_id}/toggle-calendar")
+async def admin_toggle_gallery_calendar(
+    request: Request,
+    post_id: int,
+    db: Session = Depends(get_db),
+):
+    """갤러리 포스트의 캘린더 노출 여부 토글"""
+    if r := _privileged_redirect(request, db):
+        return r
+    gp = db.query(GalleryPost).filter(GalleryPost.id == post_id).first()
+    if gp:
+        gp.show_on_calendar = not bool(gp.show_on_calendar if gp.show_on_calendar is not None else True)
+        db.commit()
+    referer = request.headers.get("referer", "/calendar")
+    return RedirectResponse(url=referer, status_code=303)
+
+
+# ── 관리자 회원 생일 편집 ────────────────────────────────────────────────────
+
+@app.post("/admin/member/{member_id}/set-birthday")
+async def admin_set_member_birthday(
+    request: Request,
+    member_id: int,
+    birthday_month: str = Form(""),
+    birthday_day:   str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """관리자가 회원 생일 직접 설정"""
+    if r := _privileged_redirect(request, db):
+        return r
+    m = db.query(Member).filter(Member.id == member_id).first()
+    if m:
+        if birthday_month and birthday_day:
+            try:
+                mm = int(birthday_month); dd = int(birthday_day)
+                if 1 <= mm <= 12 and 1 <= dd <= 31:
+                    m.birthday = f"{mm:02d}-{dd:02d}"
+            except ValueError:
+                pass
+        else:
+            m.birthday = None
+        db.commit()
+    referer = request.headers.get("referer", "/admin/members")
+    return RedirectResponse(url=referer, status_code=303)
 
 
 @app.post("/admin/member/{member_id}/toggle-graduated")

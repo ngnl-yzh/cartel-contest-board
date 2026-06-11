@@ -340,8 +340,23 @@ class GalleryPost(Base):
     images      = Column(Text, default="[]")            # JSON list of filenames
     created_by_id = Column(Integer, nullable=False)
     is_public   = Column(Boolean, default=True)
-    is_easter   = Column(Boolean, default=False)        # 이스터에그 갤러리 여부
-    sort_order  = Column(Integer, default=0, nullable=False, server_default="0")
+    is_easter          = Column(Boolean, default=False)   # 이스터에그 갤러리 여부
+    sort_order         = Column(Integer, default=0, nullable=False, server_default="0")
+    show_on_calendar   = Column(Boolean, default=True)    # 캘린더 날짜에 표시 여부
+    created_at         = Column(DateTime, default=datetime.now)
+
+
+class CalendarEvent(Base):
+    """캘린더 행사 일정"""
+    __tablename__ = "calendar_events"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    title       = Column(String(200), nullable=False)
+    description = Column(Text, default="")
+    event_type  = Column(String(30), default="기타")  # 정기모임 / 공모전 / 행사 / MT / 기타
+    start_date  = Column(Date, nullable=False)
+    end_date    = Column(Date, nullable=True)          # None이면 하루짜리
+    created_by_id = Column(Integer, nullable=True)
     created_at  = Column(DateTime, default=datetime.now)
 
 
