@@ -1,9 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Integer, String, Text, UniqueConstraint, and_, or_
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
+
+# KST 기본값 함수 — SQLAlchemy default= 에 사용
+_KST = timezone(timedelta(hours=9))
+def _kst_now():
+    """현재 KST 시각을 naive datetime으로 반환"""
+    return datetime.now(_KST).replace(tzinfo=None)
 
 BOARDS = {
     "free":    "자유게시판",
@@ -39,7 +45,7 @@ class Competition(Base):
     submitted_at = Column(DateTime, nullable=True)
     submission_docs = Column(Text, default="[]")   # JSON: ["활동계획서","기획서",...] 제출 서류 목록
     stage_override  = Column(String(20), nullable=True)  # 수동 단계 지정: 접수중/심사중/발표준비중/마감
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
 
 
 class Team(Base):
@@ -57,7 +63,7 @@ class Team(Base):
     dissolution_requested    = Column(Boolean, default=False)
     dissolution_requested_at = Column(DateTime, nullable=True)
     dissolution_votes        = Column(Text, default="[]")  # JSON: 동의한 member_id 목록
-    created_at       = Column(DateTime, default=datetime.now)
+    created_at       = Column(DateTime, default=_kst_now)
 
 
 class TeamMember(Base):
@@ -81,7 +87,7 @@ class TeamMember(Base):
     award_rank  = Column(String(50),  nullable=True)   # 대상/최우수상/우수상/장려상/입선
     award_prize = Column(String(300), default="")      # 상금·부상 내용
     award_note  = Column(Text,        default="")      # 수상 관련 메모
-    created_at  = Column(DateTime, default=datetime.now)
+    created_at  = Column(DateTime, default=_kst_now)
 
 
 class Member(Base):
@@ -105,8 +111,13 @@ class Member(Base):
     permissions  = Column(Text, default="[]")      # JSON: 중간관리자 부여 권한 목록
     birthday     = Column(String(5),  nullable=True)   # "MM-DD" 형식 생일
     is_graduated = Column(Boolean, default=False)      # 졸업 여부 (True면 캘린더에서 흐리게)
+    show_birthday= Column(Boolean, default=True)       # 생일 공개 여부 (멤버 페이지·프로필)
     show_participation_history = Column(Boolean, default=True)  # 공개 프로필에 참여 내역 표시 여부
-    created_at   = Column(DateTime, default=datetime.now)
+    # ── 설정 ───────────────────────────────────────────────────────────────
+    follow_auto_approve = Column(Boolean, default=True)        # 팔로우 자동 승인 여부
+    dm_allowed_from     = Column(String(20), default="all")    # DM 수신: all / followers / none
+    notif_settings      = Column(Text, default="{}")           # JSON: 알림 ON/OFF 설정
+    created_at   = Column(DateTime, default=_kst_now)
 
 
 class InviteCode(Base):
@@ -119,7 +130,7 @@ class InviteCode(Base):
     max_uses = Column(Integer, nullable=True)
     use_count = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
     expires_at = Column(DateTime, nullable=True)
     used_by_member_id = Column(Integer, nullable=True)
     generation = Column(Integer, nullable=True)  # 이 코드로 가입 시 자동 배정 기수
@@ -133,7 +144,7 @@ class InviteCodeUseLog(Base):
     member_id = Column(Integer, nullable=True, index=True)
     activity_name = Column(String(100), default="")
     real_name = Column(String(100), default="")
-    used_at = Column(DateTime, default=datetime.now)
+    used_at = Column(DateTime, default=_kst_now)
     revoked_at = Column(DateTime, nullable=True)
     revoked_by = Column(String(100), default="")
 
@@ -150,8 +161,8 @@ class Post(Base):
     author_id = Column(Integer, nullable=False, index=True)
     images = Column(Text, default="[]")              # JSON list of filenames
     view_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
+    updated_at = Column(DateTime, default=_kst_now)
 
 
 class Comment(Base):
@@ -162,7 +173,7 @@ class Comment(Base):
     parent_id = Column(Integer, nullable=True)       # None = 최상위 댓글
     author_id = Column(Integer, nullable=False, index=True)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
 
 
 class PostLike(Base):
@@ -193,7 +204,7 @@ class ChatRoom(Base):
     description = Column(String(300), default="")
     password_hash = Column(String(300), nullable=True)   # None = 공개방
     created_by_id = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
 
 
 class ChatRoomMember(Base):
@@ -205,7 +216,7 @@ class ChatRoomMember(Base):
     member_id = Column(Integer, nullable=False, index=True)
     role = Column(String(20), default="member")  # owner / co_owner / member
     muted_until = Column(DateTime, nullable=True)
-    joined_at = Column(DateTime, default=datetime.now)
+    joined_at = Column(DateTime, default=_kst_now)
 
 
 class ChatMessage(Base):
@@ -215,7 +226,7 @@ class ChatMessage(Base):
     room_id = Column(Integer, nullable=False, index=True)
     author_id = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
 
 
 class TeamResult(Base):
@@ -229,7 +240,7 @@ class TeamResult(Base):
     stage          = Column(String(30), nullable=False)   # review_1/review_2/announcement/award
     passed         = Column(Boolean, nullable=True)       # True=통과, False=탈락, None=미정
     note           = Column(Text, default="")
-    recorded_at    = Column(DateTime, default=datetime.now)
+    recorded_at    = Column(DateTime, default=_kst_now)
     recorded_by_id = Column(Integer, nullable=True)       # 기록한 팀장 member_id
 
 
@@ -241,7 +252,7 @@ class CompetitionScrap(Base):
     id             = Column(Integer, primary_key=True, index=True)
     competition_id = Column(Integer, nullable=False, index=True)
     member_id      = Column(Integer, nullable=False, index=True)
-    scrapped_at    = Column(DateTime, default=datetime.now)
+    scrapped_at    = Column(DateTime, default=_kst_now)
 
 
 class Follow(Base):
@@ -253,7 +264,7 @@ class Follow(Base):
     follower_id  = Column(Integer, nullable=False, index=True)   # 팔로우 신청자
     following_id = Column(Integer, nullable=False, index=True)   # 대상
     status       = Column(String(20), default="pending")         # pending / approved
-    created_at   = Column(DateTime, default=datetime.now)
+    created_at   = Column(DateTime, default=_kst_now)
     approved_at  = Column(DateTime, nullable=True)
 
 
@@ -267,7 +278,7 @@ class DirectMessage(Base):
     receiver_id = Column(Integer, nullable=False, index=True)
     content     = Column(Text, nullable=False)
     is_read     = Column(Boolean, default=False)
-    created_at  = Column(DateTime, default=datetime.now)
+    created_at  = Column(DateTime, default=_kst_now)
 
 
 class Notification(Base):
@@ -281,7 +292,7 @@ class Notification(Base):
     ref_id     = Column(Integer, nullable=True)
     message    = Column(String(300))
     is_read    = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
 
 
 class AppSetting(Base):
@@ -291,7 +302,7 @@ class AppSetting(Base):
     id         = Column(Integer, primary_key=True, index=True)
     key        = Column(String(100), unique=True, nullable=False, index=True)
     value      = Column(Text, default="")
-    updated_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=_kst_now)
 
 
 class TeamCompetitionEntry(Base):
@@ -325,8 +336,8 @@ class TeamCompetitionEntry(Base):
     note           = Column(Text, default="")
 
     recorded_by_id = Column(Integer, nullable=True)     # 기록한 팀장 member_id
-    created_at     = Column(DateTime, default=datetime.now)
-    updated_at     = Column(DateTime, default=datetime.now)
+    created_at     = Column(DateTime, default=_kst_now)
+    updated_at     = Column(DateTime, default=_kst_now)
 
 
 class GalleryPost(Base):
@@ -344,7 +355,7 @@ class GalleryPost(Base):
     is_easter          = Column(Boolean, default=False)   # 이스터에그 갤러리 여부
     sort_order         = Column(Integer, default=0, nullable=False, server_default="0")
     show_on_calendar   = Column(Boolean, default=True)    # 캘린더 날짜에 표시 여부
-    created_at         = Column(DateTime, default=datetime.now)
+    created_at         = Column(DateTime, default=_kst_now)
 
 
 class CalendarEvent(Base):
@@ -358,7 +369,7 @@ class CalendarEvent(Base):
     start_date  = Column(Date, nullable=False)
     end_date    = Column(Date, nullable=True)          # None이면 하루짜리
     created_by_id = Column(Integer, nullable=True)
-    created_at  = Column(DateTime, default=datetime.now)
+    created_at  = Column(DateTime, default=_kst_now)
 
 
 class PushSubscription(Base):
@@ -370,7 +381,7 @@ class PushSubscription(Base):
     endpoint   = Column(Text, nullable=False, unique=True)
     p256dh     = Column(Text, nullable=False)
     auth       = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=_kst_now)
 
 
 class TeamKickRequest(Base):
@@ -383,7 +394,7 @@ class TeamKickRequest(Base):
     team_member_id  = Column(Integer, nullable=False)   # TeamMember.id
     requested_by_id = Column(Integer, nullable=False)   # Member.id (팀장)
     reason          = Column(Text, default="")
-    created_at      = Column(DateTime, default=datetime.now)
+    created_at      = Column(DateTime, default=_kst_now)
 
 
 class ExternalAchievement(Base):
@@ -397,7 +408,7 @@ class ExternalAchievement(Base):
     result         = Column(String(100), default="")   # 수상/참가/장려상 등
     achieved_year  = Column(Integer, nullable=True)
     note           = Column(Text, default="")
-    created_at     = Column(DateTime, default=datetime.now)
+    created_at     = Column(DateTime, default=_kst_now)
 
 
 class JobPosting(Base):
@@ -414,7 +425,7 @@ class JobPosting(Base):
     source       = Column(String(50), default="")
     source_label = Column(String(100), default="")
     view_count   = Column(Integer, default=0)
-    created_at   = Column(DateTime, default=datetime.now)
+    created_at   = Column(DateTime, default=_kst_now)
 
 
 class CrawlSession(Base):
@@ -428,7 +439,7 @@ class CrawlSession(Base):
     counts       = Column(Text, default="{}")    # JSON: {"사이트": n}
     item_count   = Column(Integer, default=0)
     skipped_count = Column(Integer, default=0)   # 분야 필터로 제외된 수
-    crawled_at   = Column(DateTime, default=datetime.now)
+    crawled_at   = Column(DateTime, default=_kst_now)
 
 
 class JobCrawlSession(Base):
@@ -441,4 +452,16 @@ class JobCrawlSession(Base):
     errors      = Column(Text, default="[]")   # JSON: ["오류 메시지"]
     counts      = Column(Text, default="{}")   # JSON: {"링커리어": n}
     item_count  = Column(Integer, default=0)
-    crawled_at  = Column(DateTime, default=datetime.now)
+    crawled_at  = Column(DateTime, default=_kst_now)
+
+
+class PersonalPost(Base):
+    """팀원 개인 갤러리 게시물 (인스타그램 스타일)"""
+    __tablename__ = "personal_posts"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    member_id  = Column(Integer, nullable=False, index=True)
+    caption    = Column(Text, default="")            # 게시물 설명
+    images     = Column(Text, default="[]")          # JSON: ["파일명1.jpg", ...]
+    is_public  = Column(Boolean, default=True)       # False = 본인만 볼 수 있음
+    created_at = Column(DateTime, default=_kst_now)

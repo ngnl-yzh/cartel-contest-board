@@ -224,6 +224,46 @@
 {# ══════════════════════════════════════════════════════════════
    갤러리 미리보기
    ══════════════════════════════════════════════════════════════ #}
+{% if home_calendar_events %}
+<section class="home-section">
+  <div class="container">
+    <div class="section-heading">
+      <div>
+        <h2 class="section-heading-title">📅 이달의 일정</h2>
+        <p class="section-heading-sub">앞으로 30일 이내 카르텔 일정</p>
+      </div>
+      <a href="/calendar" class="section-more-link">캘린더 전체 보기 →</a>
+    </div>
+    <div class="home-cal-list">
+      {% set ev_colors = {"정기모임":"#2563eb","공모전":"#f59e0b","행사":"#22c55e","MT":"#7c3aed","기타":"#64748b"} %}
+      {% for ev in home_calendar_events %}
+      {% set color = ev_colors.get(ev.event_type, '#64748b') %}
+      {% set delta = (ev.start_date - today).days %}
+      <a href="/calendar?month={{ ev.start_date.strftime('%Y-%m') }}" class="home-cal-item">
+        <div class="home-cal-date" style="border-color:{{ color }}">
+          <span class="home-cal-mo">{{ ev.start_date.strftime('%m월') }}</span>
+          <span class="home-cal-dd">{{ ev.start_date.day }}</span>
+        </div>
+        <div class="home-cal-body">
+          <span class="home-cal-type" style="background:{{ color }}20;color:{{ color }}">{{ ev.event_type }}</span>
+          <span class="home-cal-title">{{ ev.title }}</span>
+          {% if ev.description %}
+          <span class="home-cal-desc muted">{{ ev.description | truncate(40, true, '…') }}</span>
+          {% endif %}
+        </div>
+        <div class="home-cal-dday">
+          {% if delta == 0 %}<span class="dday-today">D-Day</span>
+          {% elif delta <= 3 %}<span class="dday-urgent">D-{{ delta }}</span>
+          {% else %}<span class="dday-normal">D-{{ delta }}</span>
+          {% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if recent_gallery %}
 <section class="home-section" style="background:linear-gradient(180deg,#f8faff 0%,var(--bg) 100%)">
   <div class="container">
@@ -602,6 +642,35 @@
   height: 3px;
   background: linear-gradient(90deg, #F59E0B, #FBBF24);
 }
+
+/* ── HOME CALENDAR ──────────────────────────────────────────── */
+.home-cal-list { display: flex; flex-direction: column; gap: 8px; }
+.home-cal-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px; border-radius: 14px;
+  background: var(--surface); border: 1.5px solid var(--line);
+  text-decoration: none; color: var(--text);
+  transition: border-color .15s, box-shadow .15s;
+}
+.home-cal-item:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(37,99,235,.08); }
+.home-cal-date {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 42px; border-left: 3px solid; border-radius: 6px;
+  padding: 4px 8px; flex-shrink: 0;
+}
+.home-cal-mo { font-size: .7rem; font-weight: 700; color: var(--muted); }
+.home-cal-dd { font-size: 1.2rem; font-weight: 800; line-height: 1.1; }
+.home-cal-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.home-cal-type {
+  font-size: .68rem; font-weight: 700; padding: 1px 7px;
+  border-radius: 20px; width: fit-content;
+}
+.home-cal-title { font-size: .9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-cal-desc { font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-cal-dday { flex-shrink: 0; font-size: .75rem; font-weight: 700; text-align: center; min-width: 38px; }
+.dday-today { color: #2563eb; }
+.dday-urgent { color: #dc2626; }
+.dday-normal { color: var(--muted); }
 
 /* ── GALLERY STRIP ───────────────────────────────────────────── */
 .home-gallery-strip {

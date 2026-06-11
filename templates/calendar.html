@@ -13,7 +13,7 @@
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <a href="/profile/edit/me#birthday" class="btn btn-outline btn-sm">🎂 내 생일 등록</a>
-        {% if is_privileged %}
+        {% if is_cal_admin %}
         <button class="btn btn-primary btn-sm" onclick="openAddModal(null)">+ 일정 추가</button>
         {% endif %}
       </div>
@@ -52,11 +52,11 @@
               {% if day != 0 %}
               <span class="cal-day-num">{{ day }}</span>
 
-              {# 행사 칩 #}
+              {# 행사 칩 (PC) + 점 (모바일) #}
               {% if has_ev %}
+              {% set colors = {"정기모임":"#2563eb","공모전":"#f59e0b","행사":"#22c55e","MT":"#7c3aed","기타":"#64748b"} %}
               <div class="cal-ev-chips">
                 {% for ev in event_map[day][:3] %}
-                {% set colors = {"정기모임":"#2563eb","공모전":"#f59e0b","행사":"#22c55e","MT":"#7c3aed","기타":"#64748b"} %}
                 <div class="cal-ev-chip" style="background:{{ colors.get(ev.event_type,'#64748b') }}20;border-left:3px solid {{ colors.get(ev.event_type,'#64748b') }}">
                   <span class="cal-ev-chip-text">{{ ev.title }}</span>
                 </div>
@@ -64,6 +64,11 @@
                 {% if event_map[day]|length > 3 %}
                 <div class="cal-ev-more">+{{ event_map[day]|length - 3 }}</div>
                 {% endif %}
+              </div>
+              <div class="cal-ev-dots" aria-hidden="true">
+                {% for ev in event_map[day][:4] %}
+                <span class="cal-ev-dot" style="background:{{ colors.get(ev.event_type,'#64748b') }}"></span>
+                {% endfor %}
               </div>
               {% endif %}
 
@@ -90,7 +95,7 @@
         <div class="cal-side-card" id="dayPanel" style="display:none">
           <div class="day-panel-header">
             <span id="dayPanelTitle" class="cal-side-title"></span>
-            {% if is_privileged %}
+            {% if is_cal_admin %}
             <button class="btn btn-outline btn-xs" id="dayAddBtn" onclick="openAddFromPanel()">+ 추가</button>
             {% endif %}
           </div>
@@ -161,7 +166,7 @@
 </main>
 
 {# ══════════════════════ 관리자 모달 ══════════════════════ #}
-{% if is_privileged %}
+{% if is_cal_admin %}
 <div id="calModal" class="cal-modal-bg" style="display:none" onclick="if(event.target===this)closeModal()">
   <div class="cal-modal">
     <div class="cal-modal-header">
@@ -216,7 +221,7 @@
 {# ══════════ 데이터 + JS ══════════ #}
 <script>
 const DAY_DATA = {{ day_data_json | safe }};
-const IS_PRIV  = {{ 'true' if is_privileged else 'false' }};
+const IS_PRIV  = {{ 'true' if is_cal_admin else 'false' }};
 const CUR_MONTH = '{{ "%04d-%02d"|format(year, mon) }}';
 let _selectedDay = null;
 
@@ -304,7 +309,7 @@ function selectDay(day) {
 }
 
 // ── 관리자 모달 ──────────────────────────────────────────────────────────────
-{% if is_privileged %}
+{% if is_cal_admin %}
 function openAddModal(day) {
   const d = day || _selectedDay;
   const [y, m] = CUR_MONTH.split('-');
@@ -405,11 +410,24 @@ function deleteEvent(id) {
 
 .cal-cell {
   background: var(--surface);
+  height: 76px;           /* 고정 높이 — 내용에 관계없이 모든 셀 동일 */
   min-height: 76px;
   padding: 5px 5px 3px;
   cursor: pointer;
   transition: background .1s;
   position: relative;
+  overflow: hidden;        /* 내용이 넘쳐도 셀 크기 유지 */
+}
+@media (max-width: 600px) {
+  .cal-cell { height: 60px; min-height: 60px; }
+  .cal-ev-chip { display: none; }   /* 모바일: 칩 텍스트 숨기고 점만 표시 */
+  .cal-ev-dot {
+    display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    margin: 1px 1px 0; flex-shrink: 0;
+  }
+  .cal-cell-footer { position: static; margin-top: 2px; }
+  .cal-bd-icon, .cal-gl-icon { font-size: .55rem; }
 }
 .cal-cell:hover:not(.is-empty) { background: rgba(37,99,235,.04); }
 .cal-cell.is-selected { background: rgba(37,99,235,.08) !important; outline: 2px solid var(--cartel-blue); outline-offset: -2px; }
@@ -433,6 +451,12 @@ function deleteEvent(id) {
 }
 .cal-ev-chip-text { color: var(--text); }
 .cal-ev-more { font-size: .65rem; color: var(--muted); padding-left: 4px; }
+/* 모바일용 점 — PC에서는 숨김 */
+.cal-ev-dots { display: none; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+@media (max-width: 600px) {
+  .cal-ev-chips { display: none; }
+  .cal-ev-dots { display: flex; }
+}
 
 /* ── 셀 하단 아이콘 ── */
 .cal-cell-footer {

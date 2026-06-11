@@ -70,6 +70,9 @@
               {% if m.email %}
                 <p class="mem-email">{{ m.email }}</p>
               {% endif %}
+              {% if m.birthday and m.show_birthday %}
+                <p class="mem-birthday">🎂 {{ m.birthday }}</p>
+              {% endif %}
             </div>
 
             {# 수상 실적 (최대 3개) #}
@@ -264,6 +267,11 @@
   color: var(--muted);
   margin: 3px 0 0;
   word-break: break-all;
+}
+.mem-birthday {
+  font-size: .72rem;
+  color: var(--muted);
+  margin: 2px 0 0;
 }
 
 /* 수상 실적 */

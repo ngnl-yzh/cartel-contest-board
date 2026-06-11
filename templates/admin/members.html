@@ -166,46 +166,48 @@
                 </form>
               </td>
               <td class="table-actions">
-                {% if is_admin %}
-                <form method="post" action="/admin/members/{{ m.id }}/set-role" style="display:inline">
-                  {% if m.role == 'member' %}
-                    <input type="hidden" name="role" value="sub_admin">
-                    <button type="submit" class="btn btn-outline btn-sm">중간관리자 지정</button>
-                  {% else %}
-                    <input type="hidden" name="role" value="member">
-                    <button type="submit" class="btn btn-ghost btn-sm">권한 해제</button>
+                <div class="act-row">
+                  {% if is_admin %}
+                  {# 역할 버튼 #}
+                  <form method="post" action="/admin/members/{{ m.id }}/set-role">
+                    {% if m.role == 'member' %}
+                      <input type="hidden" name="role" value="sub_admin">
+                      <button type="submit" class="btn btn-outline btn-xs act-role">중간관리자</button>
+                    {% else %}
+                      <input type="hidden" name="role" value="member">
+                      <button type="submit" class="btn btn-ghost btn-xs act-role">권한 해제</button>
+                    {% endif %}
+                  </form>
+                  {# 중간관리자 권한 상세 설정 #}
+                  {% if m.role == 'sub_admin' %}
+                  <button type="button" class="btn btn-outline btn-xs perm-open-btn"
+                          data-id="{{ m.id }}" data-name="{{ m.activity_name }}"
+                          data-perms="{{ m.permissions | default('[]') | e }}">⚙️</button>
                   {% endif %}
-                </form>
-                {% if m.role == 'sub_admin' %}
-                <button type="button" class="btn btn-outline btn-sm perm-open-btn"
-                        data-id="{{ m.id }}"
-                        data-name="{{ m.activity_name }}"
-                        data-perms="{{ m.permissions | default('[]') | e }}">
-                  ⚙️ 권한
-                </button>
-                {% endif %}
-                {% endif %}
-                {# 졸업 토글 #}
-                {% if is_admin %}
-                <form method="post" action="/admin/member/{{ m.id }}/toggle-graduated" style="display:inline">
-                  <button type="submit"
-                          class="btn btn-sm {% if m.is_graduated %}btn-outline{% else %}btn-ghost{% endif %}"
-                          title="{% if m.is_graduated %}졸업 취소 (캘린더 활성화){% else %}졸업 처리 (캘린더에서 흐리게){% endif %}">
-                    {% if m.is_graduated %}🎓 졸업 취소{% else %}졸업{% endif %}
-                  </button>
-                </form>
-                {% endif %}
-                <form method="post" action="/admin/members/{{ m.id }}/delete" data-confirm="{{ m.activity_name }} 회원을 삭제하시겠습니까?" style="display:inline">
-                  <button type="submit" class="btn btn-danger btn-sm">삭제</button>
-                </form>
-                <form method="post" action="/admin/members/{{ m.id }}/mute-comments" style="display:inline-flex;gap:4px">
-                  <select name="duration_minutes" class="compact-select">
-                    <option value="60">1시간 댓글 금지</option>
-                    <option value="1440">24시간 댓글 금지</option>
-                    <option value="10080">7일 댓글 금지</option>
+                  {# 졸업 토글 #}
+                  <form method="post" action="/admin/member/{{ m.id }}/toggle-graduated">
+                    <button type="submit" class="btn btn-xs {% if m.is_graduated %}btn-outline{% else %}btn-ghost{% endif %}"
+                            title="{% if m.is_graduated %}졸업 취소{% else %}졸업 처리{% endif %}">
+                      🎓
+                    </button>
+                  </form>
+                  {# 삭제 #}
+                  <form method="post" action="/admin/members/{{ m.id }}/delete"
+                        data-confirm="{{ m.activity_name }} 회원을 삭제하시겠습니까?">
+                    <button type="submit" class="btn btn-danger btn-xs">삭제</button>
+                  </form>
+                  {% endif %}
+                </div>
+                {# 댓글 금지 #}
+                <form method="post" action="/admin/members/{{ m.id }}/mute-comments"
+                      style="display:flex;gap:4px;margin-top:5px">
+                  <select name="duration_minutes" class="compact-select" style="font-size:.75rem;height:28px">
+                    <option value="60">1시간 금지</option>
+                    <option value="1440">24시간 금지</option>
+                    <option value="10080">7일 금지</option>
                     <option value="">해제</option>
                   </select>
-                  <button type="submit" class="btn btn-outline btn-sm">적용</button>
+                  <button type="submit" class="btn btn-outline btn-xs">적용</button>
                 </form>
               </td>
             </tr>
@@ -269,9 +271,22 @@
 }
 
 /* 체크된 행 하이라이트 */
-.member-row.is-checked {
-  background: rgba(59,130,246,0.04);
+.member-row.is-checked { background: rgba(59,130,246,0.04); }
+
+/* 관리 액션 버튼 묶음 */
+.act-row {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
 }
+.btn-xs {
+  font-size: .72rem; padding: 3px 7px; border-radius: 6px;
+  white-space: nowrap; height: 26px; line-height: 1;
+}
+.act-role { min-width: 62px; }
+
+/* 테이블 최소 너비 — 가로 스크롤 허용 */
+.member-admin-table { min-width: 780px; }
+.member-admin-table td, .member-admin-table th { vertical-align: middle; }
+.table-actions { min-width: 180px; }
 </style>
 
 <script>

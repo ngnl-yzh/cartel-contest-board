@@ -18,9 +18,13 @@
         <h1 class="my-name">{{ current_member.activity_name }}
           {% if current_member.role == 'sub_admin' %}<span class="role-badge sub-admin">중간관리자</span>{% endif %}
         </h1>
+        {% if current_member.birthday and current_member.show_birthday %}
+        <p class="muted" style="font-size:.82rem;margin:2px 0 6px">🎂 {{ current_member.birthday }}</p>
+        {% endif %}
         <div class="my-hero-actions">
           <a href="/profile/{{ current_member.activity_name }}" class="btn btn-ghost btn-sm">공개 프로필</a>
           <a href="/profile/edit/me" class="btn btn-outline btn-sm">프로필 수정</a>
+          <a href="/my/settings" class="btn btn-ghost btn-sm">⚙️ 설정</a>
         </div>
       </div>
     </div>
@@ -254,6 +258,65 @@
       {% endif %}
     </section>
 
+    {# ── 개인 갤러리 #}
+    <section class="my-section" id="gallery">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
+        <h2 class="my-section-title" style="margin:0">🖼 내 갤러리</h2>
+        <button class="btn btn-outline btn-sm" id="showPostFormBtn">+ 게시물 추가</button>
+      </div>
+
+      {# 게시물 업로드 폼 (기본 숨김) #}
+      <div id="postForm" style="display:none;background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:1rem;margin-bottom:1rem">
+        <form method="post" action="/my/post/new" enctype="multipart/form-data">
+          <div class="field" style="margin-bottom:.75rem">
+            <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">사진 선택 <span class="muted">(최대 5장)</span></label>
+            <input type="file" name="images" accept="image/*" multiple style="font-size:.85rem">
+          </div>
+          <div class="field" style="margin-bottom:.75rem">
+            <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">캡션</label>
+            <textarea name="caption" rows="3" maxlength="500" placeholder="내용을 입력하세요..." style="width:100%;resize:vertical;font-size:.88rem"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" class="btn btn-ghost btn-sm" id="cancelPostBtn">취소</button>
+            <button type="submit" class="btn btn-primary btn-sm">게시</button>
+          </div>
+        </form>
+      </div>
+
+      {% if my_posts %}
+      <div class="my-gallery-grid">
+        {% for post in my_posts %}
+        {% set imgs = post.images | fromjson if post.images else [] %}
+        <div class="my-gallery-item">
+          {% if imgs %}
+          <div class="my-gallery-img-wrap">
+            <img src="/uploads/{{ imgs[0] }}" alt="" class="my-gallery-img">
+            {% if imgs | length > 1 %}
+            <span class="my-gallery-count">+{{ imgs | length - 1 }}</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="my-gallery-img-wrap my-gallery-no-img">
+            <span style="font-size:1.5rem">📝</span>
+          </div>
+          {% endif %}
+          <div class="my-gallery-caption">
+            {% if post.caption %}<p>{{ post.caption | truncate(60) }}</p>{% endif %}
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+              <span class="muted" style="font-size:.75rem">{{ post.created_at.strftime('%Y.%m.%d') }}</span>
+              <form method="post" action="/my/post/{{ post.id }}/delete" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px;font-size:.75rem">삭제</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted" style="padding:16px 0">아직 게시물이 없습니다. 일상을 공유해보세요 📸</p>
+      {% endif %}
+    </section>
+
     {# ── 알림 섹션 — 팔로우 + 팀 모집 #}
     {% if notif_count %}
     <section class="my-section">
@@ -286,13 +349,39 @@ document.querySelectorAll(".scrap-btn").forEach(btn => {
   });
 });
 
-// 참여 내역 CSS
+// 개인 갤러리 폼 토글
+const showPostFormBtn = document.getElementById('showPostFormBtn');
+const cancelPostBtn   = document.getElementById('cancelPostBtn');
+const postForm        = document.getElementById('postForm');
+if (showPostFormBtn) {
+  showPostFormBtn.addEventListener('click', () => {
+    postForm.style.display = 'block';
+    showPostFormBtn.style.display = 'none';
+  });
+}
+if (cancelPostBtn) {
+  cancelPostBtn.addEventListener('click', () => {
+    postForm.style.display = 'none';
+    showPostFormBtn.style.display = '';
+  });
+}
+
+// 스타일
 const style = document.createElement('style');
 style.textContent = `
 .my-past-list { display:flex;flex-direction:column;gap:10px; }
 .my-past-card { background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px; }
 .award-badge { font-size:.78rem;background:rgba(234,179,8,.1);color:#a16207;border-radius:6px;padding:2px 8px;white-space:nowrap;flex-shrink:0; }
 .role-chip.leader { font-size:.75rem;background:rgba(37,99,235,.1);color:#1d4ed8;border-radius:6px;padding:2px 7px; }
+
+.my-gallery-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px; }
+.my-gallery-item { border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface); }
+.my-gallery-img-wrap { position:relative;aspect-ratio:1/1;background:var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center; }
+.my-gallery-img { width:100%;height:100%;object-fit:cover;display:block; }
+.my-gallery-no-img { color:var(--muted); }
+.my-gallery-count { position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:#fff;font-size:.72rem;border-radius:6px;padding:2px 6px; }
+.my-gallery-caption { padding:8px 10px;font-size:.82rem; }
+.my-gallery-caption p { margin:0;color:var(--text);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical; }
 `;
 document.head.appendChild(style);
 </script>

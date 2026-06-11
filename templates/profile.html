@@ -27,6 +27,9 @@
           <p class="profile-bio muted">소개가 없습니다.</p>
         {% endif %}
 
+        {% if target.birthday and target.show_birthday %}
+        <p class="profile-since">🎂 생일: {{ target.birthday }}</p>
+        {% endif %}
         <p class="profile-since">가입일: {{ target.created_at.strftime('%Y년 %m월 %d일') }}</p>
 
         <div class="follow-counts">
@@ -245,6 +248,85 @@
     </section>
     {% endif %}
 
+    {# ── 개인 갤러리 ─────────────────────────────────────────────────── #}
+    {% if personal_posts is defined and (is_own or personal_posts) %}
+    <section class="portfolio-history" id="personal-gallery">
+      <h2 class="section-title">🖼 갤러리</h2>
+      {% if personal_posts %}
+      <div class="prof-gallery-grid">
+        {% for post in personal_posts %}
+        {% set imgs = post.images | fromjson if post.images else [] %}
+        <div class="prof-gallery-item" onclick="openGalleryModal({{ loop.index0 }})">
+          {% if imgs %}
+          <div class="prof-gallery-img-wrap">
+            <img src="/uploads/{{ imgs[0] }}" alt="" class="prof-gallery-img" loading="lazy">
+            {% if imgs | length > 1 %}
+            <span class="prof-gallery-count">+{{ imgs | length - 1 }}</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="prof-gallery-img-wrap prof-gallery-no-img">📝</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted" style="padding:24px 0">아직 갤러리 게시물이 없습니다.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
   </div>
 </main>
+
+{# 갤러리 모달 #}
+{% if personal_posts is defined and personal_posts %}
+<div id="galleryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center;padding:20px" onclick="closeGalleryModal()">
+  <div style="background:var(--surface);border-radius:16px;max-width:480px;width:100%;max-height:90vh;overflow:auto;padding:1.2rem;position:relative" onclick="event.stopPropagation()">
+    <button onclick="closeGalleryModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:1.4rem;cursor:pointer;line-height:1">✕</button>
+    <div id="galleryModalContent"></div>
+  </div>
+</div>
+
+<script>
+const galleryPosts = [
+  {% for post in personal_posts %}
+  {
+    imgs: {{ post.images | default('[]') | safe }},
+    caption: {{ post.caption | tojson | safe }},
+    date: "{{ post.created_at.strftime('%Y.%m.%d') }}"
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+function openGalleryModal(idx) {
+  const post = galleryPosts[idx];
+  let imgsHtml = '';
+  const imgs = typeof post.imgs === 'string' ? JSON.parse(post.imgs) : post.imgs;
+  if (imgs && imgs.length) {
+    imgsHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.75rem">` +
+      imgs.map(img => `<img src="/uploads/${img}" style="max-width:100%;border-radius:10px;flex:1 1 auto;max-height:300px;object-fit:cover">`).join('') +
+      `</div>`;
+  }
+  const captionHtml = post.caption ? `<p style="font-size:.9rem;line-height:1.6;white-space:pre-wrap">${post.caption}</p>` : '';
+  document.getElementById('galleryModalContent').innerHTML =
+    imgsHtml + captionHtml +
+    `<p class="muted" style="font-size:.75rem;margin-top:8px">${post.date}</p>`;
+  document.getElementById('galleryModal').style.display = 'flex';
+}
+function closeGalleryModal() {
+  document.getElementById('galleryModal').style.display = 'none';
+}
+</script>
+
+<style>
+.prof-gallery-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:4px; }
+.prof-gallery-item { cursor:pointer;border-radius:8px;overflow:hidden; }
+.prof-gallery-img-wrap { position:relative;aspect-ratio:1/1;background:var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center; }
+.prof-gallery-img { width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s; }
+.prof-gallery-item:hover .prof-gallery-img { transform:scale(1.05); }
+.prof-gallery-no-img { font-size:1.8rem;color:var(--muted); }
+.prof-gallery-count { position:absolute;top:5px;right:5px;background:rgba(0,0,0,.5);color:#fff;font-size:.7rem;border-radius:5px;padding:2px 5px; }
+</style>
+{% endif %}
 {% endblock %}

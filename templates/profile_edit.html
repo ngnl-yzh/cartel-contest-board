@@ -76,6 +76,18 @@
           <small class="field-hint">두 항목 모두 비우면 생일 정보가 삭제됩니다</small>
         </div>
 
+        {# 생일 공개 여부 #}
+        <div class="field">
+          <span>생일 공개 설정</span>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px">
+            <input type="checkbox" name="show_birthday" value="1"
+              {% if member.show_birthday is not defined or member.show_birthday %}checked{% endif %}
+              style="width:16px;height:16px">
+            <span style="font-size:.9rem">멤버 페이지·프로필에 생일 공개</span>
+          </label>
+          <small class="field-hint">체크 해제 시 나 자신과 관리자만 볼 수 있습니다</small>
+        </div>
+
         {# skills/links hidden — JS로 채워짐 #}
         <input type="hidden" name="skills_json" id="skillsJsonInput" value="{{ member.skills or '[]' }}">
         <input type="hidden" name="links_json"  id="linksJsonInput"  value="{{ member.links  or '[]' }}">
@@ -92,8 +104,8 @@
             <input type="password" name="current_password" required placeholder="변경 적용에 필수">
           </label>
         </div>
-        <button type="submit" class="btn btn-primary btn-full">저장</button>
       </form>
+    </section>
     </section>
 
     {# ── 기술 스택 ── #}
@@ -176,6 +188,13 @@
         <button type="submit" class="btn btn-outline" style="margin-top:8px">이력 추가</button>
       </form>
     </section>
+
+    {# ── 최종 저장 버튼 (폼 맨 아래) ── #}
+    <div style="margin-top:2rem;padding-bottom:2rem">
+      <button type="submit" form="basicForm" class="btn btn-primary btn-full" style="font-size:1rem;padding:14px">
+        ✅ 저장하기
+      </button>
+    </div>
 
   </div>
 </main>

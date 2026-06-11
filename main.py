@@ -58,7 +58,7 @@ from models import (
     DirectMessage, ExternalAchievement, Follow, Notification,
     Post, PostLike,
     CalendarEvent,
-    GalleryPost, PushSubscription, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
+    GalleryPost, PersonalPost, PushSubscription, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -200,6 +200,7 @@ ADMIN_PERMISSIONS = [
     ("teams",        "팀 직접 편집"),
     ("members",      "회원 관리"),
     ("gallery",      "갤러리 관리"),
+    ("calendar",     "캘린더 일정 관리"),   # 일정 추가·수정·삭제
     ("invites",      "초대코드 관리"),
     ("jobs",         "채용 관리"),
     ("settings",     "분야·태그 설정"),  # /admin/settings (공모전 분야 편집)
@@ -898,6 +899,17 @@ async def home(request: Request, db: Session = Depends(get_db)):
         GalleryPost.is_easter.is_(False),
     ).order_by(GalleryPost.created_at.desc()).limit(3).all()
 
+    # 홈 캘린더 — 앞으로 30일 이내 일정
+    from datetime import timedelta as _td
+    _home_end = today + _td(days=30)
+    home_calendar_events = (
+        db.query(CalendarEvent)
+        .filter(CalendarEvent.start_date >= today, CalendarEvent.start_date <= _home_end)
+        .order_by(CalendarEvent.start_date.asc())
+        .limit(5)
+        .all()
+    )
+
     return _render(request, "home.html", _ctx(request, db,
         total_members=total_members,
         total_comps=total_comps,
@@ -906,6 +918,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
         recent_awards=recent_awards,
         award_comps_map=award_comps_map,
         award_teams_map=award_teams_map,
+        home_calendar_events=home_calendar_events,
         recent_gallery=recent_gallery,
     ))
 
@@ -2100,6 +2113,14 @@ async def mypage(request: Request, db: Session = Depends(get_db)):
             past_projects.append({"comp": comp, "team": team, "tm": tm})
             seen_past.add(tm.competition_id)
 
+    # 개인 갤러리 (내 게시물 전체 최신순)
+    my_posts = (
+        db.query(PersonalPost)
+        .filter(PersonalPost.member_id == cm.id)
+        .order_by(PersonalPost.created_at.desc())
+        .all()
+    )
+
     return _render(request, "my.html", _ctx(request, db,
         scrapped_comps=scrapped_comps,
         active_projects=active_projects,
@@ -2107,6 +2128,7 @@ async def mypage(request: Request, db: Session = Depends(get_db)):
         leader_events=leader_events,
         comp_stages=COMP_STAGES,
         notifications=notifications,
+        my_posts=my_posts,
     ))
 
 
@@ -2118,6 +2140,116 @@ async def toggle_participation_history(request: Request, db: Session = Depends(g
     cm.show_participation_history = not cm.show_participation_history
     db.commit()
     return RedirectResponse(url="/my#participation", status_code=303)
+
+
+@app.get("/my/settings", response_class=HTMLResponse)
+async def my_settings_page(request: Request, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login?next=/my/settings", status_code=303)
+    notif = _from_json(getattr(cm, "notif_settings", None) or "{}")
+    return _render(request, "my_settings.html", _ctx(request, db,
+        notif=notif,
+        saved=request.query_params.get("saved"),
+    ))
+
+
+@app.post("/my/settings")
+async def my_settings_save(
+    request: Request,
+    # 프라이버시
+    show_birthday:              str = Form(""),
+    show_participation_history: str = Form(""),
+    # 팔로우/DM
+    follow_auto_approve: str = Form(""),
+    dm_allowed_from:     str = Form("all"),
+    # 알림 설정 (체크박스 = 체크된 것만 값 있음)
+    notif_birthday:   str = Form(""),
+    notif_calendar:   str = Form(""),
+    notif_chat:       str = Form(""),
+    notif_admin:      str = Form(""),
+    notif_push_all:   str = Form(""),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    cm.show_birthday              = bool(show_birthday)
+    cm.show_participation_history = bool(show_participation_history)
+    cm.follow_auto_approve        = bool(follow_auto_approve)
+    cm.dm_allowed_from            = dm_allowed_from if dm_allowed_from in ("all","followers","none") else "all"
+    notif = {
+        "birthday": bool(notif_birthday),
+        "calendar": bool(notif_calendar),
+        "chat":     bool(notif_chat),
+        "admin":    bool(notif_admin),
+        "push_all": bool(notif_push_all),
+    }
+    cm.notif_settings = json.dumps(notif, ensure_ascii=False)
+    db.commit()
+    return RedirectResponse(url="/my/settings?saved=1", status_code=303)
+
+
+@app.post("/my/toggle-birthday-public")
+async def toggle_birthday_public(request: Request, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    cm.show_birthday = not getattr(cm, "show_birthday", True)
+    db.commit()
+    return RedirectResponse(url=_safe_referer(request, "/my"), status_code=303)
+
+
+# ── 개인 갤러리 ───────────────────────────────────────────────────────────────
+
+@app.post("/my/post/new")
+async def personal_post_new(
+    request: Request,
+    caption: str = Form(""),
+    images: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+
+    saved = []
+    for img in images:
+        if img and img.filename:
+            ext = img.filename.rsplit(".", 1)[-1].lower()
+            fname = f"pp_{cm.id}_{_now().strftime('%Y%m%d%H%M%S%f')}.{ext}"
+            path = UPLOAD_DIR / fname
+            with open(path, "wb") as f:
+                f.write(await img.read())
+            saved.append(fname)
+
+    import json as _json
+    post = PersonalPost(
+        member_id=cm.id,
+        caption=caption.strip(),
+        images=_json.dumps(saved),
+    )
+    db.add(post)
+    db.commit()
+    return RedirectResponse(url="/my#gallery", status_code=303)
+
+
+@app.post("/my/post/{post_id}/delete")
+async def personal_post_delete(request: Request, post_id: int, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    post = db.query(PersonalPost).filter(
+        PersonalPost.id == post_id, PersonalPost.member_id == cm.id
+    ).first()
+    if post:
+        import json as _json
+        for fname in _json.loads(post.images or "[]"):
+            try: (UPLOAD_DIR / fname).unlink()
+            except Exception: pass
+        db.delete(post)
+        db.commit()
+    return RedirectResponse(url="/my#gallery", status_code=303)
 
 
 @app.get("/my/calendar", response_class=HTMLResponse)
@@ -3063,6 +3195,12 @@ async def profile_view(request: Request, activity_name: str, db: Session = Depen
     is_own = bool(cm and cm.id == target.id)
     show_participation = is_own or getattr(target, "show_participation_history", True)
 
+    # 개인 갤러리 (공개 게시물만 — 본인이면 전체)
+    posts_query = db.query(PersonalPost).filter(PersonalPost.member_id == target.id)
+    if not is_own:
+        posts_query = posts_query.filter(PersonalPost.is_public.is_(True))
+    personal_posts = posts_query.order_by(PersonalPost.created_at.desc()).all()
+
     return _render(request,
         "profile.html",
         _ctx(request, db, target=target, is_own=is_own,
@@ -3074,7 +3212,8 @@ async def profile_view(request: Request, activity_name: str, db: Session = Depen
              follower_count=follower_count, following_count=following_count,
              external_achievements=external_achievements,
              target_skills=target_skills, target_links=target_links,
-             show_participation=show_participation),
+             show_participation=show_participation,
+             personal_posts=personal_posts),
     )
 
 
@@ -3349,6 +3488,7 @@ async def calendar_page(
         upcoming_bd=upcoming_bd,
         day_data_json=json.dumps(day_data, ensure_ascii=False),
         et_colors=_ET_COLORS,
+        is_cal_admin=_has_perm(request, db, "calendar"),
     ))
 
 
@@ -3364,8 +3504,8 @@ async def admin_calendar_add(
     description: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    if r := _privileged_redirect(request, db):
-        return r
+    if not _has_perm(request, db, "calendar"):
+        return RedirectResponse(url="/member/login", status_code=303)
     try:
         sd = date.fromisoformat(start_date)
         ed = date.fromisoformat(end_date) if end_date.strip() else None
@@ -3395,8 +3535,8 @@ async def admin_calendar_edit(
     description: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    if r := _privileged_redirect(request, db):
-        return r
+    if not _has_perm(request, db, "calendar"):
+        return RedirectResponse(url="/member/login", status_code=303)
     ev = db.query(CalendarEvent).filter(CalendarEvent.id == event_id).first()
     if not ev:
         raise HTTPException(status_code=404)
@@ -3418,8 +3558,8 @@ async def admin_calendar_delete(
     redirect_month: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    if r := _privileged_redirect(request, db):
-        return r
+    if not _has_perm(request, db, "calendar"):
+        return RedirectResponse(url="/member/login", status_code=303)
     ev = db.query(CalendarEvent).filter(CalendarEvent.id == event_id).first()
     if ev:
         back_month = redirect_month or f"{ev.start_date.year:04d}-{ev.start_date.month:02d}"
