@@ -614,6 +614,7 @@ def _ctx(request: Request, db: Session, **extra) -> dict:
         "is_privileged": is_admin or bool(cm and cm.role == "sub_admin"),
         "boards": BOARDS,
         "now": _now(),
+        "today": _today(),
         "css_version": _CSS_VER,
         "submission_doc_types": SUBMISSION_DOC_TYPES,
     }
