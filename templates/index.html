@@ -170,51 +170,59 @@
     {% if competitions %}
     <div class="competition-grid">
       {% for comp in competitions %}
-      <a href="/competition/{{ comp.id }}" class="comp-card status-{{ comp.status }}">
-        {% if comp.image %}
-        <div class="card-thumb" style="background-image:url('/uploads/{{ comp.image }}')"></div>
-        {% endif %}
-        <div class="comp-card-tags">
-          {% for tag in comp.tags | fromjson %}
-            <span class="tag-chip tag-small">{{ tag }}</span>
-          {% endfor %}
-          {% if comp.is_featured %}
-            <span class="tag-chip tag-featured">주목</span>
+      <div class="comp-card-wrap">
+        <a href="/competition/{{ comp.id }}" class="comp-card status-{{ comp.status }}">
+          {% if comp.image %}
+          <div class="card-thumb" style="background-image:url('/uploads/{{ comp.image }}')"></div>
           {% endif %}
-        </div>
-        <h2 class="comp-card-title">{{ comp.title }}</h2>
-        <p class="comp-card-org">{{ comp.organizer }}</p>
-        {% if comp.prize %}
-          <p class="comp-card-prize">시상 {{ comp.prize }}</p>
+          <div class="comp-card-tags">
+            {% for tag in comp.tags | fromjson %}
+              <span class="tag-chip tag-small">{{ tag }}</span>
+            {% endfor %}
+            {% if comp.is_featured %}
+              <span class="tag-chip tag-featured">주목</span>
+            {% endif %}
+          </div>
+          <h2 class="comp-card-title">{{ comp.title }}</h2>
+          <p class="comp-card-org">{{ comp.organizer }}</p>
+          {% if comp.prize %}
+            <p class="comp-card-prize">시상 {{ comp.prize }}</p>
+          {% endif %}
+          <div class="comp-card-footer">
+            <div class="comp-dates">
+              {% if comp.start_date %}
+                <span class="date-info">접수 {{ comp.start_date.strftime('%m/%d') }}</span>
+                <span class="date-sep">~</span>
+              {% endif %}
+              <span class="date-deadline">마감 {{ comp.deadline.strftime('%Y.%m.%d') }}</span>
+            </div>
+            <div class="comp-meta">
+              {% if comp.status == 'closed' %}
+                <span class="deadline-badge closed">마감</span>
+              {% elif comp.status == 'upcoming' %}
+                <span class="deadline-badge open">📅 이벤트 진행 중</span>
+              {% elif comp.status == 'urgent' %}
+                <span class="deadline-badge urgent">D-{{ comp.days_left }}</span>
+              {% elif comp.status == 'soon' %}
+                <span class="deadline-badge soon">D-{{ comp.days_left }}</span>
+              {% else %}
+                <span class="deadline-badge open">D-{{ comp.days_left }}</span>
+              {% endif %}
+              {% if comp.comp_stage and comp.comp_stage != '접수중' %}
+                <span class="stage-chip stage-chip-{{ comp.comp_stage | replace('중','') | replace('준비','prep') | replace('마','end') }}">{{ comp.comp_stage }}</span>
+              {% endif %}
+              <span class="member-badge">👥 {{ comp.member_count }}{% if comp.max_members %}/{{ comp.max_members }}{% endif %}</span>
+              <span class="view-count-sm">조회 {{ comp.view_count }}</span>
+            </div>
+          </div>
+        </a>
+        {% if current_member %}
+        <button class="card-heart-btn {% if comp.id in user_scrap_ids %}hearted{% endif %}"
+                data-comp-id="{{ comp.id }}" title="관심 공모전">
+          {{ '❤️' if comp.id in user_scrap_ids else '🤍' }}
+        </button>
         {% endif %}
-        <div class="comp-card-footer">
-          <div class="comp-dates">
-            {% if comp.start_date %}
-              <span class="date-info">접수 {{ comp.start_date.strftime('%m/%d') }}</span>
-              <span class="date-sep">~</span>
-            {% endif %}
-            <span class="date-deadline">마감 {{ comp.deadline.strftime('%Y.%m.%d') }}</span>
-          </div>
-          <div class="comp-meta">
-            {% if comp.status == 'closed' %}
-              <span class="deadline-badge closed">마감</span>
-            {% elif comp.status == 'upcoming' %}
-              <span class="deadline-badge open">📅 이벤트 진행 중</span>
-            {% elif comp.status == 'urgent' %}
-              <span class="deadline-badge urgent">D-{{ comp.days_left }}</span>
-            {% elif comp.status == 'soon' %}
-              <span class="deadline-badge soon">D-{{ comp.days_left }}</span>
-            {% else %}
-              <span class="deadline-badge open">D-{{ comp.days_left }}</span>
-            {% endif %}
-            {% if comp.comp_stage and comp.comp_stage != '접수중' %}
-              <span class="stage-chip stage-chip-{{ comp.comp_stage | replace('중','') | replace('준비','prep') | replace('마','end') }}">{{ comp.comp_stage }}</span>
-            {% endif %}
-            <span class="member-badge">👥 {{ comp.member_count }}{% if comp.max_members %}/{{ comp.max_members }}{% endif %}</span>
-            <span class="view-count-sm">조회 {{ comp.view_count }}</span>
-          </div>
-        </div>
-      </a>
+      </div>
       {% endfor %}
     </div>
     {% else %}
@@ -615,6 +623,33 @@
   goTo(0);
   startAuto();
 })();
+
+/* ── 관심(하트) 버튼 ── */
+document.querySelectorAll('.card-heart-btn').forEach(btn => {
+  btn.addEventListener('click', async e => {
+    e.preventDefault(); e.stopPropagation();
+    const compId = btn.dataset.compId;
+    const res = await fetch(`/competition/${compId}/scrap`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      btn.classList.toggle('hearted', data.scrapped);
+      btn.textContent = data.scrapped ? '❤️' : '🤍';
+    }
+  });
+});
 </script>
+<style>
+.comp-card-wrap { position: relative; }
+.card-heart-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(255,255,255,.85); backdrop-filter: blur(4px);
+  border: none; border-radius: 50%; width: 34px; height: 34px;
+  font-size: 1rem; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  transition: transform .15s, background .15s; z-index: 2;
+}
+.card-heart-btn:hover { transform: scale(1.15); background: #fff; }
+.card-heart-btn.hearted { background: rgba(255,230,230,.9); }
+</style>
 {% endblock %}
 {% endblock %}

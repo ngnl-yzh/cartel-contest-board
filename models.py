@@ -105,6 +105,7 @@ class Member(Base):
     permissions  = Column(Text, default="[]")      # JSON: 중간관리자 부여 권한 목록
     birthday     = Column(String(5),  nullable=True)   # "MM-DD" 형식 생일
     is_graduated = Column(Boolean, default=False)      # 졸업 여부 (True면 캘린더에서 흐리게)
+    show_participation_history = Column(Boolean, default=True)  # 공개 프로필에 참여 내역 표시 여부
     created_at   = Column(DateTime, default=datetime.now)
 
 

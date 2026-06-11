@@ -40,8 +40,9 @@
       {% endif %}
       <span class="view-count">조회 {{ comp.view_count }}회</span>
       {% if current_member %}
-      <button class="scrap-btn {% if user_scrapped %}scrapped{% endif %}" data-comp-id="{{ comp.id }}" title="스크랩">
-        {{ '📌' if user_scrapped else '🔖' }} {{ '스크랩 해제' if user_scrapped else '스크랩' }}
+      <button class="scrap-btn heart-btn {% if user_scrapped %}scrapped{% endif %}" data-comp-id="{{ comp.id }}" title="관심 공모전">
+        <span class="heart-icon">{{ '❤️' if user_scrapped else '🤍' }}</span>
+        <span class="heart-label">{{ '관심 해제' if user_scrapped else '관심' }}</span>
       </button>
       {% endif %}
     </div>
@@ -918,7 +919,8 @@ if (scrapBtn) {
     if (res.ok) {
       const data = await res.json();
       scrapBtn.classList.toggle("scrapped", data.scrapped);
-      scrapBtn.textContent = data.scrapped ? "📌 스크랩 해제" : "🔖 스크랩";
+      scrapBtn.querySelector(".heart-icon").textContent = data.scrapped ? "❤️" : "🤍";
+      scrapBtn.querySelector(".heart-label").textContent = data.scrapped ? "관심 해제" : "관심";
     }
   });
 }

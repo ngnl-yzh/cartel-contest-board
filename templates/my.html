@@ -186,9 +186,12 @@
       {% endif %}
     </section>
 
-    {# ── 스크랩한 공모전 #}
+    {# ── 관심 공모전 (하트) #}
     <section class="my-section">
-      <h2 class="my-section-title">📌 스크랩한 공모전</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <h2 class="my-section-title" style="margin:0">❤️ 관심 공모전</h2>
+        <a href="/my/calendar" class="btn btn-ghost btn-sm">📅 내 캘린더</a>
+      </div>
       {% if scrapped_comps %}
       <div class="my-scrap-list">
         {% for comp in scrapped_comps %}
@@ -207,13 +210,47 @@
             {% else %}
               <span class="deadline-badge open">D-{{ comp.days_left }}</span>
             {% endif %}
-            <button class="scrap-btn scrapped" data-comp-id="{{ comp.id }}" title="스크랩 해제">📌</button>
+            <button class="scrap-btn scrapped" data-comp-id="{{ comp.id }}" title="관심 해제">❤️</button>
           </div>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <p class="muted" style="padding:16px 0">스크랩한 공모전이 없습니다. 공모전 페이지에서 📌 버튼으로 저장해보세요!</p>
+      <p class="muted" style="padding:16px 0">관심 공모전이 없습니다. 공모전 카드의 🤍 버튼으로 저장해보세요!</p>
+      {% endif %}
+    </section>
+
+    {# ── 참여 내역 (과거 공모전) #}
+    <section class="my-section" id="participation">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
+        <h2 class="my-section-title" style="margin:0">📋 공모전 참여 내역</h2>
+        <form method="post" action="/my/toggle-participation-history" style="display:inline">
+          <button type="submit" class="btn btn-ghost btn-sm" title="공개 프로필에서의 표시 여부">
+            {% if current_member.show_participation_history %}🔓 프로필 공개 중{% else %}🔒 프로필 비공개{% endif %}
+          </button>
+        </form>
+      </div>
+      {% if past_projects %}
+      <div class="my-past-list">
+        {% for item in past_projects %}
+        <div class="my-past-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <a href="/competition/{{ item.comp.id }}" class="my-scrap-title">{{ item.comp.title }}</a>
+            {% if item.tm.award_rank %}
+              <span class="award-badge">🏆 {{ item.tm.award_rank }}</span>
+            {% endif %}
+          </div>
+          <span class="my-scrap-org muted">{{ item.comp.organizer }}</span>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">
+            <span class="deadline-badge closed">마감 {{ item.comp.deadline.strftime('%Y.%m') }}</span>
+            {% if item.tm.is_leader %}<span class="role-chip leader">팀장</span>{% endif %}
+            {% if item.team %}<span class="muted" style="font-size:.8rem">{{ item.team.name }}</span>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted" style="padding:16px 0">마감된 공모전 참여 내역이 없습니다.</p>
       {% endif %}
     </section>
 
@@ -248,5 +285,15 @@ document.querySelectorAll(".scrap-btn").forEach(btn => {
     }
   });
 });
+
+// 참여 내역 CSS
+const style = document.createElement('style');
+style.textContent = `
+.my-past-list { display:flex;flex-direction:column;gap:10px; }
+.my-past-card { background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px; }
+.award-badge { font-size:.78rem;background:rgba(234,179,8,.1);color:#a16207;border-radius:6px;padding:2px 8px;white-space:nowrap;flex-shrink:0; }
+.role-chip.leader { font-size:.75rem;background:rgba(37,99,235,.1);color:#1d4ed8;border-radius:6px;padding:2px 7px; }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}

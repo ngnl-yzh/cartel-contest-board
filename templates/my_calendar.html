@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}My Calendar · CARTEL{% endblock %}
+
+{% block content %}
+<main class="container" style="max-width:720px;padding-top:32px">
+
+  {# ── 헤더 #}
+  <div class="page-heading" style="margin-bottom:1.5rem">
+    <div>
+      <p class="eyebrow" style="font-size:.8rem;color:var(--muted);margin:0 0 4px">
+        <a href="/my" style="color:inherit;text-decoration:none">My</a> › Calendar
+      </p>
+      <h1 style="margin:0;font-size:1.4rem">📅 My Calendar</h1>
+      <p class="muted" style="margin:4px 0 0;font-size:.85rem">
+        참여 중 <strong>{{ participating_count }}</strong>개 · 관심 <strong>{{ interested_count }}</strong>개 공모전 일정
+      </p>
+    </div>
+    <a href="/my" class="btn btn-outline btn-sm">← 마이페이지</a>
+  </div>
+
+  {# ── 범례 #}
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.5rem;font-size:.82rem">
+    <span class="ev-chip ev-deadline">마감</span>
+    <span class="ev-chip ev-announce">발표</span>
+    <span class="ev-chip ev-review">심사</span>
+    <span class="ev-chip ev-award">시상</span>
+    <span class="ev-chip ev-interest">관심</span>
+  </div>
+
+  {% if events %}
+    {# ── 다가오는 일정 #}
+    {% set upcoming = events | selectattr('past', 'equalto', false) | list %}
+    {% set past     = events | selectattr('past', 'equalto', true)  | list %}
+
+    {% if upcoming %}
+    <section style="margin-bottom:2rem">
+      <h2 style="font-size:1rem;font-weight:700;margin:0 0 .75rem;display:flex;align-items:center;gap:6px">
+        📌 다가오는 일정 <span class="muted" style="font-weight:400;font-size:.85rem">{{ upcoming | length }}건</span>
+      </h2>
+      <div class="ev-list">
+        {% set prev_month = namespace(val='') %}
+        {% for ev in upcoming %}
+          {% set mo = ev.date.strftime('%Y년 %m월') %}
+          {% if mo != prev_month.val %}
+          <div class="ev-month-label">{{ mo }}</div>
+          {% set prev_month.val = mo %}
+          {% endif %}
+          <div class="ev-row {% if ev.date == today %}ev-today{% endif %}">
+            <div class="ev-date-col">
+              <span class="ev-day">{{ ev.date.strftime('%d') }}</span>
+              <span class="ev-dow muted">{{ ['월','화','수','목','금','토','일'][ev.date.weekday()] }}</span>
+              {% if ev.date == today %}
+              <span class="ev-today-dot"></span>
+              {% else %}
+                {% set delta = (ev.date - today).days %}
+                {% if delta <= 3 %}
+                <span class="ev-dday urgent">D-{{ delta }}</span>
+                {% elif delta <= 7 %}
+                <span class="ev-dday soon">D-{{ delta }}</span>
+                {% else %}
+                <span class="ev-dday">D-{{ delta }}</span>
+                {% endif %}
+              {% endif %}
+            </div>
+            <div class="ev-body">
+              <span class="ev-chip ev-{{ ev.type }}">{{ ev.label }}</span>
+              <a href="/competition/{{ ev.comp.id }}" class="ev-comp-title">{{ ev.comp.title }}</a>
+              {% if ev.team %}<span class="ev-team muted">{{ ev.team.name }}</span>{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% else %}
+    <div class="empty-state" style="padding:40px 0">
+      <p style="font-size:2rem;margin:0">🎉</p>
+      <p class="muted">다가오는 일정이 없습니다.</p>
+      <a href="/competitions" class="btn btn-primary btn-sm" style="margin-top:8px">공모전 둘러보기</a>
+    </div>
+    {% endif %}
+
+    {# ── 지난 일정 (접기) #}
+    {% if past %}
+    <section>
+      <details>
+        <summary style="cursor:pointer;font-size:.9rem;font-weight:600;color:var(--muted);padding:8px 0;list-style:none;display:flex;align-items:center;gap:6px">
+          <span>▶</span> 지난 일정 {{ past | length }}건
+        </summary>
+        <div class="ev-list" style="margin-top:.5rem;opacity:.7">
+          {% set prev_month2 = namespace(val='') %}
+          {% for ev in past | reverse %}
+            {% set mo = ev.date.strftime('%Y년 %m월') %}
+            {% if mo != prev_month2.val %}
+            <div class="ev-month-label">{{ mo }}</div>
+            {% set prev_month2.val = mo %}
+            {% endif %}
+            <div class="ev-row">
+              <div class="ev-date-col">
+                <span class="ev-day">{{ ev.date.strftime('%d') }}</span>
+                <span class="ev-dow muted">{{ ['월','화','수','목','금','토','일'][ev.date.weekday()] }}</span>
+              </div>
+              <div class="ev-body">
+                <span class="ev-chip ev-{{ ev.type }}">{{ ev.label }}</span>
+                <a href="/competition/{{ ev.comp.id }}" class="ev-comp-title">{{ ev.comp.title }}</a>
+                {% if ev.team %}<span class="ev-team muted">{{ ev.team.name }}</span>{% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </details>
+    </section>
+    {% endif %}
+
+  {% else %}
+  <div class="empty-state" style="padding:60px 0;text-align:center">
+    <p style="font-size:2.5rem;margin:0">📭</p>
+    <p class="muted" style="margin:.5rem 0">아직 등록된 일정이 없습니다.</p>
+    <p class="muted" style="font-size:.85rem">공모전에 참여하거나 ❤️ 관심 버튼을 누르면<br>여기에 일정이 표시됩니다.</p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+      <a href="/competitions" class="btn btn-primary btn-sm">공모전 보기</a>
+      <a href="/calendar" class="btn btn-outline btn-sm">전체 캘린더</a>
+    </div>
+  </div>
+  {% endif %}
+
+</main>
+
+<style>
+.ev-list { display:flex;flex-direction:column;gap:0; }
+.ev-month-label {
+  font-size:.75rem;font-weight:700;color:var(--muted);
+  padding:12px 0 4px;text-transform:uppercase;letter-spacing:.04em;
+}
+.ev-row {
+  display:flex;align-items:flex-start;gap:14px;
+  padding:12px 14px;border-radius:12px;
+  border-left:3px solid transparent;
+  transition:background .1s;
+}
+.ev-row:hover { background:var(--bg); }
+.ev-row.ev-today { background:rgba(37,99,235,.04);border-left-color:#2563eb; }
+.ev-date-col {
+  min-width:44px;display:flex;flex-direction:column;align-items:center;
+  flex-shrink:0;padding-top:2px;
+}
+.ev-day { font-size:1.15rem;font-weight:700;line-height:1.1; }
+.ev-dow { font-size:.72rem;margin-top:1px; }
+.ev-today-dot {
+  width:6px;height:6px;border-radius:50%;
+  background:#2563eb;margin-top:4px;
+}
+.ev-dday {
+  font-size:.7rem;font-weight:700;margin-top:4px;
+  padding:1px 5px;border-radius:6px;
+  background:rgba(100,116,139,.1);color:var(--muted);
+}
+.ev-dday.urgent { background:rgba(239,68,68,.1);color:#dc2626; }
+.ev-dday.soon   { background:rgba(234,179,8,.1);color:#b45309; }
+.ev-body { display:flex;flex-direction:column;gap:3px;flex:1;min-width:0; }
+.ev-comp-title {
+  font-size:.9rem;font-weight:600;color:var(--text);text-decoration:none;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ev-comp-title:hover { color:var(--primary); }
+.ev-team { font-size:.78rem; }
+
+/* 이벤트 타입 칩 */
+.ev-chip {
+  display:inline-block;font-size:.72rem;font-weight:700;
+  padding:2px 8px;border-radius:20px;flex-shrink:0;width:fit-content;
+}
+.ev-deadline { background:rgba(239,68,68,.1);color:#dc2626; }
+.ev-announce { background:rgba(16,185,129,.1);color:#059669; }
+.ev-review   { background:rgba(234,179,8,.1);color:#b45309; }
+.ev-award    { background:rgba(168,85,247,.1);color:#7c3aed; }
+.ev-interest { background:rgba(236,72,153,.1);color:#be185d; }
+
+details summary::-webkit-details-marker { display:none; }
+details[open] summary span:first-child { transform:rotate(90deg);display:inline-block; }
+</style>
+{% endblock %}

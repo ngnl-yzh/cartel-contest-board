@@ -1019,6 +1019,15 @@ async def index(
     for c in all_competitions + featured:
         c.member_count = counts.get(c.id, 0)
 
+    # 로그인한 회원의 관심 공모전 ID 집합 (하트 버튼 활성 여부 판단)
+    cm = _current_member(request, db)
+    user_scrap_ids: set = set()
+    if cm:
+        user_scrap_ids = {
+            s.competition_id for s in
+            db.query(CompetitionScrap).filter(CompetitionScrap.member_id == cm.id).all()
+        }
+
     return _render(request,
         "index.html",
         _ctx(request, db,
@@ -1029,7 +1038,8 @@ async def index(
              page=page, total_pages=total_pages, total_count=total_count,
              closed_count=closed_count,
              current_stage=stage,
-             stage_counts=stage_counts),
+             stage_counts=stage_counts,
+             user_scrap_ids=user_scrap_ids),
     )
 
 
@@ -2078,12 +2088,117 @@ async def mypage(request: Request, db: Session = Depends(get_db)):
     for n in notifications:
         n.actor = notif_actors.get(n.actor_id)
 
+    # 전체 참여 내역 (과거 + 현재, 마감일 내림차순)
+    past_projects = []
+    seen_past: set = set()
+    for tm in sorted(my_tms, key=lambda t: comps_map_my.get(t.competition_id, type("", (), {"deadline": _today()})()).deadline if hasattr(comps_map_my.get(t.competition_id, None), "deadline") else _today(), reverse=True):
+        if tm.competition_id in seen_past:
+            continue
+        comp = comps_map_my.get(tm.competition_id)
+        if comp and comp.deadline < today:  # 마감된 것만 (진행 중은 active_projects에 있음)
+            team = teams_map_my.get(tm.team_id)
+            past_projects.append({"comp": comp, "team": team, "tm": tm})
+            seen_past.add(tm.competition_id)
+
     return _render(request, "my.html", _ctx(request, db,
         scrapped_comps=scrapped_comps,
         active_projects=active_projects,
+        past_projects=past_projects,
         leader_events=leader_events,
         comp_stages=COMP_STAGES,
         notifications=notifications,
+    ))
+
+
+@app.post("/my/toggle-participation-history")
+async def toggle_participation_history(request: Request, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    cm.show_participation_history = not cm.show_participation_history
+    db.commit()
+    return RedirectResponse(url="/my#participation", status_code=303)
+
+
+@app.get("/my/calendar", response_class=HTMLResponse)
+async def my_calendar(request: Request, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login?next=/my/calendar", status_code=303)
+
+    today = _today()
+
+    # ── 참여 중인 공모전 (TeamMember → Competition)
+    my_tms = (
+        db.query(TeamMember)
+        .filter(or_(TeamMember.member_id == cm.id, TeamMember.nickname == cm.activity_name))
+        .all()
+    )
+    my_comp_ids = list({tm.competition_id for tm in my_tms if tm.competition_id})
+    my_team_ids = list({tm.team_id for tm in my_tms if tm.team_id})
+
+    participating_comps = _annotate(
+        db.query(Competition).filter(Competition.id.in_(my_comp_ids)).all()
+    ) if my_comp_ids else []
+    teams_map = {t.id: t for t in db.query(Team).filter(Team.id.in_(my_team_ids)).all()} if my_team_ids else {}
+    tms_by_comp = {}
+    for tm in my_tms:
+        tms_by_comp.setdefault(tm.competition_id, tm)
+
+    # ── 관심(스크랩) 공모전
+    scrap_ids = [s.competition_id for s in
+                 db.query(CompetitionScrap).filter(CompetitionScrap.member_id == cm.id).all()]
+    interested_comps = _annotate(
+        db.query(Competition).filter(
+            Competition.id.in_(scrap_ids),
+            Competition.id.notin_(my_comp_ids)  # 참여 중인 건 중복 제외
+        ).all()
+    ) if scrap_ids else []
+
+    # ── 날짜 이벤트 목록 조합
+    import json as _json
+    events = []  # [{date, label, comp, type, past}]
+
+    def _add_event(date_val, label, comp, ev_type, team=None):
+        if date_val:
+            events.append({
+                "date": date_val,
+                "label": label,
+                "comp": comp,
+                "type": ev_type,   # deadline / review / announce / award / interest
+                "team": team,
+                "past": date_val < today,
+            })
+
+    for comp in participating_comps:
+        tm = tms_by_comp.get(comp.id)
+        team = teams_map.get(tm.team_id) if tm else None
+        _add_event(comp.deadline, "마감", comp, "deadline", team)
+        _add_event(comp.announcement_date, "발표", comp, "announce", team)
+        _add_event(comp.award_date, "시상", comp, "award", team)
+        # review_dates JSON
+        try:
+            for rd in _json.loads(comp.review_dates or "[]"):
+                if rd.get("date"):
+                    import datetime as _dt
+                    rd_date = _dt.date.fromisoformat(rd["date"])
+                    _add_event(rd_date, rd.get("label", "심사"), comp, "review", team)
+        except Exception:
+            pass
+        _add_event(comp.review_1_date, "1차 심사", comp, "review", team)
+        _add_event(comp.review_2_date, "2차 심사", comp, "review", team)
+
+    for comp in interested_comps:
+        _add_event(comp.deadline, "마감", comp, "interest")
+
+    # 날짜 오름차순 정렬 (지난 것 뒤로)
+    events.sort(key=lambda e: (e["past"], e["date"]))
+
+    return _render(request, "my_calendar.html", _ctx(request, db,
+        events=events,
+        today=today,
+        participating_count=len(participating_comps),
+        interested_count=len(interested_comps),
     ))
 
 
@@ -2944,16 +3059,22 @@ async def profile_view(request: Request, activity_name: str, db: Session = Depen
     target_skills = _from_json(target.skills)
     target_links  = _from_json(target.links)
 
+    # 참여 내역 공개 여부 반영 (본인이거나 공개 설정된 경우에만 노출)
+    is_own = bool(cm and cm.id == target.id)
+    show_participation = is_own or getattr(target, "show_participation_history", True)
+
     return _render(request,
         "profile.html",
-        _ctx(request, db, target=target, is_own=bool(cm and cm.id == target.id),
-             team_rows=team_rows, comps_map=comps_map,
+        _ctx(request, db, target=target, is_own=is_own,
+             team_rows=team_rows if show_participation else [],
+             comps_map=comps_map,
              stats={"total": total, "submitted": submitted, "awarded": awarded},
              stage_results_map=stage_results_map,
              follow_status=follow_status, follow_obj=follow_obj,
              follower_count=follower_count, following_count=following_count,
              external_achievements=external_achievements,
-             target_skills=target_skills, target_links=target_links),
+             target_skills=target_skills, target_links=target_links,
+             show_participation=show_participation),
     )
 
 

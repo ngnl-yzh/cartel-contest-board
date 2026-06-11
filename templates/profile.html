@@ -150,7 +150,9 @@
     <section class="portfolio-history">
       <h2 class="section-title">공모전 이력</h2>
 
-      {% if not team_rows %}
+      {% if not show_participation and not is_own %}
+      <p class="muted" style="padding:24px 0">🔒 이 회원은 참여 내역을 비공개로 설정했습니다.</p>
+      {% elif not team_rows %}
       <p class="muted" style="padding:24px 0">아직 참여한 공모전이 없습니다.</p>
       {% else %}
       <div class="history-list">

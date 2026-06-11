@@ -60,6 +60,7 @@ def init_db():
             _add_col(conn, inspector, "members", "permissions",   "permissions TEXT DEFAULT '[]'")
             _add_col(conn, inspector, "members", "birthday",      "birthday VARCHAR(5)")
             _add_col(conn, inspector, "members", "is_graduated",  "is_graduated BOOLEAN DEFAULT FALSE")
+            _add_col(conn, inspector, "members", "show_participation_history", "show_participation_history BOOLEAN DEFAULT TRUE")
 
         if "invite_codes" in tables:
             _add_col(conn, inspector, "invite_codes", "code_type", "code_type VARCHAR(20) DEFAULT 'personal'")
