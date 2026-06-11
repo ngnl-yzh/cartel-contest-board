@@ -9,7 +9,9 @@
     <article class="post-article">
       <div class="post-article-header">
         <a href="/board/{{ board }}" class="back-link">← {{ board_name }}</a>
-        <h1 class="post-article-title">{{ post.title }}</h1>
+        <h1 class="post-article-title">
+          {% if post.is_pinned %}<span style="font-size:.85em;margin-right:6px">📌</span>{% endif %}{{ post.title }}
+        </h1>
         <div class="post-article-meta">
           {% if author %}
           <a href="/profile/{{ author.activity_name }}" class="post-author-link">
@@ -47,6 +49,13 @@
           </button>
         </form>
         {% set cm = current_member %}
+        {% if is_privileged %}
+        <form method="post" action="/board/{{ board }}/post/{{ post.id }}/pin" style="display:inline">
+          <button type="submit" class="btn btn-outline btn-sm" title="고정 토글">
+            {% if post.is_pinned %}📌 고정 해제{% else %}📌 고정{% endif %}
+          </button>
+        </form>
+        {% endif %}
         {% if cm and (cm.id == post.author_id or is_privileged) %}
         <a href="/board/{{ board }}/post/{{ post.id }}/edit" class="btn btn-outline btn-sm">수정</a>
         <form method="post" action="/board/{{ board }}/post/{{ post.id }}/delete"

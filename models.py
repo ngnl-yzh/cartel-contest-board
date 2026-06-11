@@ -12,10 +12,14 @@ def _kst_now():
     return datetime.now(_KST).replace(tzinfo=None)
 
 BOARDS = {
+    "notice":  "공지사항",
     "free":    "자유게시판",
     "social":  "활동(친목)",
     "project": "활동(프로젝트)",
 }
+
+# 공지 전용 게시판 (관리자/중간관리자만 글 작성)
+NOTICE_ONLY_BOARDS = {"notice"}
 
 
 class Competition(Base):
@@ -155,12 +159,13 @@ class Post(Base):
     __tablename__ = "posts"
 
     id = Column(Integer, primary_key=True, index=True)
-    board = Column(String(20), nullable=False, index=True)   # free / social / project
+    board = Column(String(20), nullable=False, index=True)   # free / social / project / notice
     title = Column(String(300), nullable=False)
     content = Column(Text, default="")
     author_id = Column(Integer, nullable=False, index=True)
     images = Column(Text, default="[]")              # JSON list of filenames
     view_count = Column(Integer, default=0)
+    is_pinned = Column(Boolean, default=False)       # 공지 고정 핀
     created_at = Column(DateTime, default=_kst_now)
     updated_at = Column(DateTime, default=_kst_now)
 
@@ -453,6 +458,20 @@ class JobCrawlSession(Base):
     counts      = Column(Text, default="{}")   # JSON: {"링커리어": n}
     item_count  = Column(Integer, default=0)
     crawled_at  = Column(DateTime, default=_kst_now)
+
+
+class SiteBanner(Base):
+    """사이트 전체 배너/팝업 공지"""
+    __tablename__ = "site_banners"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    message    = Column(Text, nullable=False)          # 배너 본문 (마크다운 가능)
+    link_url   = Column(String(500), default="")       # 클릭 링크 (선택)
+    link_label = Column(String(100), default="자세히")  # 링크 버튼 텍스트
+    color      = Column(String(20), default="blue")    # blue / red / green / yellow
+    is_active  = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=_kst_now)
+    expires_at = Column(DateTime, nullable=True)       # 만료일시 (NULL=무기한)
 
 
 class PersonalPost(Base):

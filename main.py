@@ -49,7 +49,7 @@ from auth import create_token, verify_token
 from database import SessionLocal, get_db, init_db
 from member_auth import create_member_token, hash_password, verify_member_token, verify_password, verify_team_password
 from models import (
-    BOARDS,
+    BOARDS, NOTICE_ONLY_BOARDS,
     AppSetting,
     ChatMessage, ChatRoom, ChatRoomMember,
     Comment, CommentLike,
@@ -58,7 +58,7 @@ from models import (
     DirectMessage, ExternalAchievement, Follow, Notification,
     Post, PostLike,
     CalendarEvent,
-    GalleryPost, PersonalPost, PushSubscription, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
+    GalleryPost, PersonalPost, PushSubscription, SiteBanner, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -635,6 +635,15 @@ def _ctx(request: Request, db: Session, **extra) -> dict:
         ).count()
     base["notif_count"] = notif_count
     base["dm_unread"]   = dm_unread
+
+    # 활성 사이트 배너
+    now_dt = _now()
+    active_banners = db.query(SiteBanner).filter(
+        SiteBanner.is_active.is_(True),
+        or_(SiteBanner.expires_at.is_(None), SiteBanner.expires_at > now_dt),
+    ).order_by(SiteBanner.created_at.desc()).all()
+    base["site_banners"] = active_banners
+
     base.update(extra)
     return base
 
@@ -3694,6 +3703,70 @@ async def push_unsubscribe(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"ok": False}, status_code=500)
 
 
+# ── 사이트 배너 관리 ──────────────────────────────────────────────────────────
+
+@app.get("/admin/banners", response_class=HTMLResponse)
+async def admin_banners_page(request: Request, db: Session = Depends(get_db)):
+    if r := _admin_redirect(request):
+        return r
+    banners = db.query(SiteBanner).order_by(SiteBanner.created_at.desc()).all()
+    return _render(request, "admin/banners.html", _ctx(request, db, banners=banners))
+
+
+@app.post("/admin/banners/create")
+async def admin_banner_create(
+    request: Request,
+    message: str = Form(...),
+    link_url: str = Form(""),
+    link_label: str = Form("자세히"),
+    color: str = Form("blue"),
+    expires_at: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if r := _admin_redirect(request):
+        return r
+    from datetime import datetime as _dt
+    exp = None
+    if expires_at:
+        try:
+            exp = _dt.fromisoformat(expires_at)
+        except ValueError:
+            pass
+    banner = SiteBanner(
+        message=message.strip(),
+        link_url=link_url.strip(),
+        link_label=link_label.strip() or "자세히",
+        color=color if color in ("blue","red","green","yellow","purple") else "blue",
+        is_active=True,
+        expires_at=exp,
+    )
+    db.add(banner)
+    db.commit()
+    return RedirectResponse(url="/admin/banners", status_code=303)
+
+
+@app.post("/admin/banners/{banner_id}/toggle")
+async def admin_banner_toggle(request: Request, banner_id: int, db: Session = Depends(get_db)):
+    if r := _admin_redirect(request):
+        return r
+    banner = db.query(SiteBanner).filter(SiteBanner.id == banner_id).first()
+    if banner:
+        banner.is_active = not banner.is_active
+        db.commit()
+    return RedirectResponse(url="/admin/banners", status_code=303)
+
+
+@app.post("/admin/banners/{banner_id}/delete")
+async def admin_banner_delete(request: Request, banner_id: int, db: Session = Depends(get_db)):
+    if r := _admin_redirect(request):
+        return r
+    banner = db.query(SiteBanner).filter(SiteBanner.id == banner_id).first()
+    if banner:
+        db.delete(banner)
+        db.commit()
+    return RedirectResponse(url="/admin/banners", status_code=303)
+
+
 @app.get("/admin/push", response_class=HTMLResponse)
 async def admin_push_page(request: Request, db: Session = Depends(get_db)):
     """관리자 푸시 방송 페이지"""
@@ -4826,9 +4899,11 @@ async def board_list(
             )
         )
     total = post_query.with_entities(func.count(Post.id)).scalar()
+
+    # 고정 글을 맨 위로 (공지 게시판), 그 외는 최신순
     posts = (
         post_query
-        .order_by(Post.created_at.desc())
+        .order_by(Post.is_pinned.desc(), Post.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -4873,6 +4948,8 @@ async def board_new_page(request: Request, board: str, db: Session = Depends(get
     cm = _current_member(request, db)
     if not cm:
         return RedirectResponse(url="/member/login", status_code=303)
+    if board in NOTICE_ONLY_BOARDS and not _is_privileged(request, db):
+        raise HTTPException(status_code=403, detail="공지사항은 관리자/중간관리자만 작성할 수 있습니다.")
     return _render(request,
         "board/post_new.html",
         _ctx(request, db, board=board, board_name=BOARDS[board], error=None),
@@ -4891,6 +4968,8 @@ async def board_new_post(
     cm = _current_member(request, db)
     if not cm:
         raise HTTPException(status_code=401)
+    if board in NOTICE_ONLY_BOARDS and not _is_privileged(request, db):
+        raise HTTPException(status_code=403, detail="공지사항은 관리자/중간관리자만 작성할 수 있습니다.")
 
     if len(title.strip()) > 200:
         raise HTTPException(status_code=400, detail="제목은 200자를 초과할 수 없습니다.")
@@ -5033,6 +5112,19 @@ async def board_delete_post(request: Request, board: str, post_id: int, db: Sess
     db.delete(post)
     db.commit()
     return RedirectResponse(url=f"/board/{board}", status_code=303)
+
+
+@app.post("/board/{board}/post/{post_id}/pin")
+async def board_pin_post(request: Request, board: str, post_id: int, db: Session = Depends(get_db)):
+    """관리자/중간관리자 전용: 게시글 핀(고정) 토글"""
+    if not _is_privileged(request, db):
+        raise HTTPException(status_code=403)
+    post = db.query(Post).filter(Post.id == post_id, Post.board == board).first()
+    if not post:
+        raise HTTPException(status_code=404)
+    post.is_pinned = not post.is_pinned
+    db.commit()
+    return RedirectResponse(url=f"/board/{board}/post/{post_id}", status_code=303)
 
 
 @app.post("/board/{board}/post/{post_id}/like")

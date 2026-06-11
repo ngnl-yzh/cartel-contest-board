@@ -42,6 +42,13 @@
             Board <svg class="c-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="c-dropdown-menu" role="menu">
+            <a href="/board/notice" class="c-dropdown-item {% if '/board/notice' in request.url.path %}is-active{% endif %}" role="menuitem">
+              <span class="c-drop-icon">📢</span>
+              <div>
+                <div class="c-drop-label">공지사항</div>
+                <div class="c-drop-desc">관리자 공식 공지</div>
+              </div>
+            </a>
             <a href="/board/free" class="c-dropdown-item {% if '/board/free' in request.url.path %}is-active{% endif %}" role="menuitem">
               <span class="c-drop-icon">✏️</span>
               <div>
@@ -159,6 +166,7 @@
         <a href="/jobs" class="c-mobile-link {% if '/jobs' in request.url.path or request.url.path.startswith('/job/') %}is-active{% endif %}">💼 Career</a>
         <div class="c-mobile-group">
           <div class="c-mobile-group-title">Board</div>
+          <a href="/board/notice"  class="c-mobile-link c-mobile-sub {% if '/board/notice'  in request.url.path %}is-active{% endif %}">📢 공지사항</a>
           <a href="/board/free"    class="c-mobile-link c-mobile-sub {% if '/board/free'    in request.url.path %}is-active{% endif %}">✏️ 자유게시판</a>
           <a href="/board/social"  class="c-mobile-link c-mobile-sub {% if '/board/social'  in request.url.path %}is-active{% endif %}">🤝 친목게시판</a>
           <a href="/board/project" class="c-mobile-link c-mobile-sub {% if '/board/project' in request.url.path %}is-active{% endif %}">🛠️ 프로젝트</a>
@@ -201,6 +209,23 @@
       </nav>
     </div>
   </div>
+
+  {# ── 사이트 배너 ─────────────────────────────────────────────────── #}
+  {% if site_banners is defined and site_banners %}
+  <div id="siteBannerStack">
+    {% for b in site_banners %}
+    <div class="site-banner site-banner--{{ b.color }}" id="siteBanner{{ b.id }}" data-banner-id="{{ b.id }}">
+      <div class="site-banner-body">
+        <span class="site-banner-msg">{{ b.message }}</span>
+        {% if b.link_url %}
+        <a href="{{ b.link_url }}" class="site-banner-link" target="_blank" rel="noopener">{{ b.link_label }}</a>
+        {% endif %}
+      </div>
+      <button class="site-banner-close" onclick="dismissBanner({{ b.id }})" aria-label="닫기">✕</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {# ── 콘텐츠 ─────────────────────────────────────────────────────── #}
   {% block content %}{% endblock %}
@@ -370,6 +395,55 @@
     window.addEventListener('load', () => setTimeout(subscribePush, 2000));
     {% endif %}
   })();
+  </script>
+
+  {# 사이트 배너 스타일 + JS #}
+  <style>
+  #siteBannerStack { position: sticky; top: 60px; z-index: 900; }
+  .site-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px; font-size: .85rem; font-weight: 500; gap: 12px;
+  }
+  .site-banner--blue   { background: #dbeafe; color: #1e3a8a; border-bottom: 1.5px solid #bfdbfe; }
+  .site-banner--red    { background: #fee2e2; color: #7f1d1d; border-bottom: 1.5px solid #fecaca; }
+  .site-banner--green  { background: #dcfce7; color: #14532d; border-bottom: 1.5px solid #bbf7d0; }
+  .site-banner--yellow { background: #fef9c3; color: #713f12; border-bottom: 1.5px solid #fef08a; }
+  .site-banner--purple { background: #ede9fe; color: #4c1d95; border-bottom: 1.5px solid #ddd6fe; }
+  .site-banner-body { display: flex; align-items: center; gap: 10px; flex: 1; flex-wrap: wrap; }
+  .site-banner-link {
+    font-size: .8rem; font-weight: 700; padding: 3px 10px;
+    border-radius: 6px; background: rgba(0,0,0,.1); text-decoration: none;
+    color: inherit; white-space: nowrap;
+  }
+  .site-banner-link:hover { background: rgba(0,0,0,.18); }
+  .site-banner-close {
+    background: none; border: none; cursor: pointer; font-size: 1rem;
+    opacity: .5; padding: 4px 6px; flex-shrink: 0; line-height: 1;
+  }
+  .site-banner-close:hover { opacity: 1; }
+  @media (prefers-color-scheme: dark) {
+    .site-banner--blue   { background: #1e3a8a22; color: #93c5fd; border-color: #1e3a8a44; }
+    .site-banner--red    { background: #7f1d1d22; color: #fca5a5; border-color: #7f1d1d44; }
+    .site-banner--green  { background: #14532d22; color: #86efac; border-color: #14532d44; }
+    .site-banner--yellow { background: #713f1222; color: #fde68a; border-color: #713f1244; }
+    .site-banner--purple { background: #4c1d9522; color: #c4b5fd; border-color: #4c1d9544; }
+  }
+  </style>
+  <script>
+  (function () {
+    const dismissed = JSON.parse(localStorage.getItem('dismissed_banners') || '[]');
+    dismissed.forEach(id => {
+      const el = document.getElementById('siteBanner' + id);
+      if (el) el.style.display = 'none';
+    });
+  })();
+  function dismissBanner(id) {
+    const el = document.getElementById('siteBanner' + id);
+    if (el) el.style.display = 'none';
+    const dismissed = JSON.parse(localStorage.getItem('dismissed_banners') || '[]');
+    if (!dismissed.includes(id)) dismissed.push(id);
+    localStorage.setItem('dismissed_banners', JSON.stringify(dismissed));
+  }
   </script>
 
   {# SW 업데이트 배너 스타일 #}

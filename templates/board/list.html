@@ -7,10 +7,19 @@
 
     <div class="board-header">
       <div>
-        <h1 class="board-title">{{ board_name }}</h1>
-        <p class="board-sub muted">카르텔 팀 내부 게시판입니다.</p>
+        <h1 class="board-title">
+          {% if board == 'notice' %}📢 {% endif %}{{ board_name }}
+        </h1>
+        <p class="board-sub muted">
+          {% if board == 'notice' %}관리자/중간관리자가 작성하는 공식 공지입니다.
+          {% else %}카르텔 팀 내부 게시판입니다.{% endif %}
+        </p>
       </div>
-      {% if current_member %}
+      {% if board == 'notice' %}
+        {% if is_privileged %}
+          <a href="/board/{{ board }}/new" class="btn btn-primary">📢 공지 작성</a>
+        {% endif %}
+      {% elif current_member %}
         <a href="/board/{{ board }}/new" class="btn btn-primary">글쓰기</a>
       {% else %}
         <a href="/member/login" class="btn btn-outline">로그인 후 글쓰기</a>
@@ -25,8 +34,9 @@
     {% if posts %}
     <div class="post-list">
       {% for post in posts %}
-      <a href="/board/{{ board }}/post/{{ post.id }}" class="post-row">
+      <a href="/board/{{ board }}/post/{{ post.id }}" class="post-row {% if post.is_pinned %}post-row--pinned{% endif %}">
         <div class="post-row-main">
+          {% if post.is_pinned %}<span class="post-pin-badge">📌</span>{% endif %}
           <span class="post-title">{{ post.title }}</span>
           {% if post.images | fromjson | length > 0 %}
             <span class="post-img-badge">📷</span>
@@ -90,4 +100,11 @@
 
   </div>
 </main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.post-row--pinned { background: rgba(37,99,235,.04); border-left: 3px solid var(--primary); }
+.post-pin-badge { font-size: .85rem; flex-shrink: 0; }
+</style>
 {% endblock %}
