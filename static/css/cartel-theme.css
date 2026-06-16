@@ -194,6 +194,11 @@ body {
   color: #fff;
 }
 .c-dropdown-item.is-active { color: var(--cartel-blue-l); }
+.c-drop-divider {
+  height: 1px;
+  background: rgba(255,255,255,.1);
+  margin: 6px 4px;
+}
 
 .c-drop-icon {
   font-size: 1.15rem;
