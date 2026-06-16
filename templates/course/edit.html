@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ '강의평' if tab == 'review' else '시험정보' }} 수정 · {{ entry.subject_name }}{% endblock %}
+
+{% block content %}
+<main class="course-page">
+  <div class="container" style="max-width:680px">
+
+    <div class="page-heading" style="margin-bottom:1.5rem">
+      <div>
+        <p class="eyebrow">{{ entry.subject_name }}</p>
+        <h1>{{ '강의평' if tab == 'review' else '시험정보' }} 수정</h1>
+      </div>
+      <a href="/course/{{ entry.id }}?tab={{ tab }}" class="btn btn-outline">취소</a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/course/{{ entry.id }}/post/{{ post.id }}/edit" class="post-form">
+
+      {# 연도 / 학기 #}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+        <label class="field">
+          <span>연도</span>
+          <input type="number" name="year" min="2000" max="2099"
+                 value="{{ post.year or now.year }}" placeholder="{{ now.year }}">
+        </label>
+        <label class="field">
+          <span>학기</span>
+          <select name="semester">
+            <option value="">선택 안 함</option>
+            {% for val, label in semesters %}
+            <option value="{{ val }}" {% if post.semester == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      {# 내용 #}
+      <label class="field">
+        <span>내용 <span class="required">*</span></span>
+        {% if tab == 'exam' %}
+        <textarea name="content" id="writeContent" rows="14" required>{{ post.content }}</textarea>
+        {% else %}
+        <textarea name="content" id="writeContent" rows="10" required>{{ post.content }}</textarea>
+        {% endif %}
+      </label>
+
+      <div class="preview-block">
+        <div class="preview-head">미리보기</div>
+        <div id="writePreview" class="markdown-body"></div>
+      </div>
+
+      {# 익명 여부 #}
+      <label class="field" style="flex-direction:row;align-items:center;gap:.75rem;cursor:pointer">
+        <input type="checkbox" name="is_anonymous" value="1" style="width:16px;height:16px"
+               {% if post.is_anonymous %}checked{% endif %}>
+        <span style="font-size:.9rem">익명으로 작성</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">수정 완료</button>
+        <a href="/course/{{ entry.id }}?tab={{ tab }}" class="btn btn-outline">취소</a>
+      </div>
+    </form>
+
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const content = document.getElementById("writeContent");
+const preview = document.getElementById("writePreview");
+if (content && preview) {
+  const update = () => { preview.innerHTML = renderMarkdown(content.value); };
+  content.addEventListener("input", update);
+  update();
+}
+</script>
+{% endblock %}

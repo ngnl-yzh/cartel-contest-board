@@ -125,6 +125,9 @@
             <div class="cd-card-header-right">
               {% set cm = current_member %}
               {% if cm and (cm.id == p.author_id or is_privileged) %}
+              <a href="/course/{{ entry.id }}/post/{{ p.id }}/edit"
+                 onclick="event.stopPropagation()"
+                 class="btn btn-ghost btn-xs">수정</a>
               <form method="post" action="/course/{{ entry.id }}/post/{{ p.id }}/delete"
                     onsubmit="return confirm('삭제하시겠습니까?')"
                     onclick="event.stopPropagation()" style="display:inline">

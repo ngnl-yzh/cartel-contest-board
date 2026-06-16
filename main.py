@@ -7215,6 +7215,64 @@ async def course_write_submit(
     return RedirectResponse(url=f"/course/{course_id}?tab={ptype}", status_code=303)
 
 
+@app.get("/course/{course_id}/post/{post_id}/edit", response_class=HTMLResponse)
+async def course_post_edit_form(
+    request: Request,
+    course_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+    if not entry:
+        raise HTTPException(status_code=404)
+    cp = db.query(CoursePost).filter(CoursePost.id == post_id, CoursePost.course_id == course_id).first()
+    if not cp:
+        raise HTTPException(status_code=404)
+    is_priv = _is_privileged(request, db)
+    if cm.id != cp.author_id and not is_priv:
+        raise HTTPException(status_code=403)
+    return _render(request, "course/edit.html",
+                   _ctx(request, db, entry=entry, post=cp, tab=cp.post_type, semesters=_SEMESTERS))
+
+
+@app.post("/course/{course_id}/post/{post_id}/edit")
+async def course_post_edit_submit(
+    request: Request,
+    course_id: int,
+    post_id: int,
+    content: str = Form(...),
+    year: str = Form(""),
+    semester: str = Form(""),
+    is_anonymous: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    cp = db.query(CoursePost).filter(CoursePost.id == post_id, CoursePost.course_id == course_id).first()
+    if not cp:
+        raise HTTPException(status_code=404)
+    is_priv = _is_privileged(request, db)
+    if cm.id != cp.author_id and not is_priv:
+        raise HTTPException(status_code=403)
+    content = content.strip()
+    if not content:
+        entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+        return _render(request, "course/edit.html",
+                       _ctx(request, db, entry=entry, post=cp, tab=cp.post_type,
+                            semesters=_SEMESTERS, error="내용을 입력해주세요."))
+    valid_semesters = {s for s, _ in _SEMESTERS}
+    cp.content = content
+    cp.year = int(year) if year and year.isdigit() else None
+    cp.semester = semester if semester in valid_semesters else ""
+    cp.is_anonymous = bool(is_anonymous)
+    db.commit()
+    return RedirectResponse(url=f"/course/{course_id}?tab={cp.post_type}", status_code=303)
+
+
 @app.post("/course/{course_id}/post/{post_id}/delete")
 async def course_post_delete(
     request: Request,
