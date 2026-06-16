@@ -70,16 +70,9 @@
                 <div class="c-drop-desc">팀 프로젝트 공유</div>
               </div>
             </a>
-            <div class="c-drop-divider"></div>
-            <a href="/course" class="c-dropdown-item {% if request.url.path.startswith('/course') %}is-active{% endif %}" role="menuitem">
-              <span class="c-drop-icon">📚</span>
-              <div>
-                <div class="c-drop-label">교과목 정보</div>
-                <div class="c-drop-desc">강의평 · 시험정보</div>
-              </div>
-            </a>
           </div>
         </div>
+        <a href="/course" class="c-nav-link {% if request.url.path.startswith('/course') %}is-active{% endif %}">Course</a>
 
         <a href="/chat" class="c-nav-link {% if '/chat' in request.url.path %}is-active{% endif %}">Chat</a>
         <a href="/members" class="c-nav-link {% if '/members' in request.url.path %}is-active{% endif %}">Member</a>
@@ -178,8 +171,8 @@
           <a href="/board/free"    class="c-mobile-link c-mobile-sub {% if '/board/free'    in request.url.path %}is-active{% endif %}">✏️ 자유게시판</a>
           <a href="/board/social"  class="c-mobile-link c-mobile-sub {% if '/board/social'  in request.url.path %}is-active{% endif %}">🤝 친목게시판</a>
           <a href="/board/project" class="c-mobile-link c-mobile-sub {% if '/board/project' in request.url.path %}is-active{% endif %}">🛠️ 프로젝트</a>
-          <a href="/course"        class="c-mobile-link c-mobile-sub {% if request.url.path.startswith('/course') %}is-active{% endif %}">📚 교과목 정보</a>
         </div>
+        <a href="/course"   class="c-mobile-link {% if request.url.path.startswith('/course') %}is-active{% endif %}">📚 Course</a>
         <a href="/chat"     class="c-mobile-link {% if '/chat'     in request.url.path %}is-active{% endif %}">💬 Chat</a>
         <a href="/members"  class="c-mobile-link {% if '/members'  in request.url.path %}is-active{% endif %}">👥 Member</a>
         <a href="/calendar" class="c-mobile-link {% if '/calendar' in request.url.path %}is-active{% endif %}">Calendar</a>
