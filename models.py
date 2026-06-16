@@ -121,6 +121,7 @@ class Member(Base):
     follow_auto_approve = Column(Boolean, default=True)        # 팔로우 자동 승인 여부
     dm_allowed_from     = Column(String(20), default="all")    # DM 수신: all / followers / none
     notif_settings      = Column(Text, default="{}")           # JSON: 알림 ON/OFF 설정
+    timetable_visibility = Column(String(10), default="members")  # public/members/none
     created_at   = Column(DateTime, default=_kst_now)
 
 
@@ -532,3 +533,18 @@ class PersonalPost(Base):
     images     = Column(Text, default="[]")          # JSON: ["파일명1.jpg", ...]
     is_public  = Column(Boolean, default=True)       # False = 본인만 볼 수 있음
     created_at = Column(DateTime, default=_kst_now)
+
+
+class TimetableEntry(Base):
+    """시간표 항목"""
+    __tablename__ = "timetable_entries"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    member_id    = Column(Integer, nullable=False, index=True)
+    subject_name = Column(String(100), nullable=False)
+    day          = Column(String(3), nullable=False)   # mon/tue/wed/thu/fri
+    start_time   = Column(String(5), nullable=False)   # "09:00"
+    end_time     = Column(String(5), nullable=False)   # "11:00"
+    location     = Column(String(100), default="")
+    color        = Column(String(10), default="teal")  # teal/blue/green/purple/orange/pink
+    created_at   = Column(DateTime, default=_kst_now)

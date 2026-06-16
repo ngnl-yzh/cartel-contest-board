@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}시간표 관리{% endblock %}
+
+{% block content %}
+<main class="container" style="max-width:900px;padding-top:24px;padding-bottom:80px">
+
+  <div class="page-heading" style="margin-bottom:1.5rem">
+    <div>
+      <p class="eyebrow">프로필</p>
+      <h1>시간표 관리</h1>
+    </div>
+    <a href="/profile/{{ current_member.activity_name }}" class="btn btn-outline btn-sm">← 내 프로필</a>
+  </div>
+
+  {# ── 공개 범위 설정 ── #}
+  <section class="tt-section">
+    <h2 class="tt-section-title">공개 대상</h2>
+    <form method="post" action="/timetable/settings" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      {% for val, label, desc in [
+        ('public',  '모든 방문자', '로그인 없이도 볼 수 있음'),
+        ('members', '회원만',      '로그인한 회원에게만 공개'),
+        ('none',    '비공개',      '본인만 볼 수 있음'),
+      ] %}
+      <label class="tt-vis-option {% if tt_visibility == val %}active{% endif %}">
+        <input type="radio" name="visibility" value="{{ val }}"
+               {% if tt_visibility == val %}checked{% endif %}
+               onchange="this.form.submit()" style="display:none">
+        <span class="tt-vis-label">{{ label }}</span>
+        <span class="tt-vis-desc">{{ desc }}</span>
+      </label>
+      {% endfor %}
+    </form>
+  </section>
+
+  {# ── 시간표 미리보기 ── #}
+  <section class="tt-section">
+    <h2 class="tt-section-title">시간표</h2>
+    {% include "timetable/_grid.html" %}
+  </section>
+
+  {# ── 수업 추가 폼 ── #}
+  <section class="tt-section">
+    <h2 class="tt-section-title">수업 추가</h2>
+    <form method="post" action="/timetable/add" class="tt-add-form">
+      <div class="tt-form-row">
+        <label class="field tt-field-wide">
+          <span>과목명 <span class="required">*</span></span>
+          <input type="text" name="subject_name" required maxlength="100" placeholder="예) C프로그래밍 및 실습">
+        </label>
+        <label class="field">
+          <span>요일 <span class="required">*</span></span>
+          <select name="day" required>
+            {% for val, label in tt_days %}
+            <option value="{{ val }}">{{ label }}요일</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="tt-form-row">
+        <label class="field">
+          <span>시작 시간 <span class="required">*</span></span>
+          <input type="time" name="start_time" required value="09:00" min="06:00" max="22:00">
+        </label>
+        <label class="field">
+          <span>종료 시간 <span class="required">*</span></span>
+          <input type="time" name="end_time" required value="10:30" min="06:00" max="22:00">
+        </label>
+        <label class="field">
+          <span>강의실</span>
+          <input type="text" name="location" maxlength="100" placeholder="예) 공7-222">
+        </label>
+      </div>
+      <div class="tt-form-row" style="align-items:flex-end">
+        <div class="field">
+          <span>색상</span>
+          <div class="tt-color-row">
+            {% for c in tt_colors %}
+            <label class="tt-color-opt">
+              <input type="radio" name="color" value="{{ c }}"
+                     {% if loop.first %}checked{% endif %} style="display:none">
+              <span class="tt-color-swatch tt-color-{{ c }}" title="{{ c }}"></span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="flex-shrink:0">+ 추가</button>
+      </div>
+    </form>
+  </section>
+
+  {# ── 등록된 수업 목록 ── #}
+  {% if entries %}
+  <section class="tt-section">
+    <h2 class="tt-section-title">등록된 수업 <span class="muted" style="font-weight:400;font-size:.83rem">({{ entries|length }}개)</span></h2>
+    <div style="display:flex;flex-direction:column;gap:.35rem">
+      {% for e in entries | sort(attribute='day') %}
+      {% set day_label = {'mon':'월','tue':'화','wed':'수','thu':'목','fri':'금'} %}
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;border:1.5px solid var(--line);border-radius:10px;background:var(--surface)">
+        <span class="tt-chip tt-color-{{ e.color }}">{{ day_label[e.day] }}</span>
+        <span style="font-weight:700;font-size:.9rem;flex:1;min-width:0">{{ e.subject_name }}</span>
+        <span class="muted" style="font-size:.8rem">{{ e.start_time }}–{{ e.end_time }}</span>
+        {% if e.location %}<span class="muted" style="font-size:.78rem">{{ e.location }}</span>{% endif %}
+        <form method="post" action="/timetable/{{ e.id }}/delete"
+              onsubmit="return confirm('삭제하시겠습니까?')" style="display:inline">
+          <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.tt-section { margin-bottom: 2rem; }
+.tt-section-title {
+  font-size: .92rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+  margin: 0 0 .75rem;
+}
+
+/* 공개 범위 */
+.tt-vis-option {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: .6rem 1rem; border: 1.5px solid var(--line);
+  border-radius: 10px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+  min-width: 110px;
+}
+.tt-vis-option:hover { border-color: var(--primary); }
+.tt-vis-option.active { border-color: var(--primary); background: rgba(37,99,235,.06); }
+.tt-vis-label { font-size: .88rem; font-weight: 700; }
+.tt-vis-desc  { font-size: .73rem; color: var(--muted); }
+
+/* 폼 */
+.tt-add-form { display: flex; flex-direction: column; gap: .75rem; }
+.tt-form-row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-start; }
+.tt-field-wide { flex: 2; min-width: 160px; }
+.tt-form-row .field { flex: 1; min-width: 110px; }
+
+/* 색상 */
+.tt-color-row { display: flex; gap: .4rem; margin-top: .4rem; flex-wrap: wrap; }
+.tt-color-opt { cursor: pointer; }
+.tt-color-swatch {
+  display: block; width: 26px; height: 26px; border-radius: 50%;
+  border: 2.5px solid transparent;
+  transition: transform .12s, border-color .12s;
+}
+.tt-color-opt input:checked + .tt-color-swatch {
+  border-color: var(--text-1); transform: scale(1.18);
+}
+.tt-color-swatch:hover { transform: scale(1.1); }
+
+/* 색상 팔레트 */
+.tt-color-teal   { background: #99e6e6; }
+.tt-color-blue   { background: #93c5fd; }
+.tt-color-green  { background: #86efac; }
+.tt-color-purple { background: #c4b5fd; }
+.tt-color-orange { background: #fcd34d; }
+.tt-color-pink   { background: #f9a8d4; }
+
+/* 칩 */
+.tt-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px;
+  font-size: .82rem; font-weight: 800; flex-shrink: 0;
+}
+</style>
+{% endblock %}

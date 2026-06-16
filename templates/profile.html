@@ -148,6 +148,30 @@
     </section>
     {% endif %}
 
+    {# ── 시간표 ──────────────────────────────────────────────────── #}
+    {% if can_see_tt and timetable_entries is defined %}
+    <section class="profile-tt-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+        <h2 class="section-title" style="margin:0">시간표</h2>
+        {% if is_own %}
+        <a href="/timetable" class="btn btn-ghost btn-sm">✏️ 편집</a>
+        {% endif %}
+      </div>
+      {% if timetable_entries %}
+        {% set entries = timetable_entries %}
+        {% include "timetable/_grid.html" %}
+      {% else %}
+        <p class="muted" style="padding:1rem 0;font-size:.88rem">
+          {% if is_own %}
+            아직 시간표를 등록하지 않았습니다. <a href="/timetable" style="color:var(--primary)">지금 추가하기</a>
+          {% else %}
+            등록된 시간표가 없습니다.
+          {% endif %}
+        </p>
+      {% endif %}
+    </section>
+    {% endif %}
+
     {# ── 공모전 이력 ──────────────────────────────────────────────── #}
     {% if team_rows is defined %}
     <section class="portfolio-history">

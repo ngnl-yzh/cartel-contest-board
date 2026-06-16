@@ -54,6 +54,7 @@ from models import (
     CalendarEvent,
     GalleryPost, PersonalPost, PushSubscription, SiteBanner, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
     CourseEntry, CoursePost, CourseFile,
+    TimetableEntry,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -3218,6 +3219,14 @@ async def profile_view(request: Request, activity_name: str, db: Session = Depen
         posts_query = posts_query.filter(PersonalPost.is_public.is_(True))
     personal_posts = posts_query.order_by(PersonalPost.created_at.desc()).all()
 
+    # 시간표: 공개 범위에 따라 노출
+    tt_vis = getattr(target, "timetable_visibility", "members") or "members"
+    can_see_tt = is_own or tt_vis == "public" or (tt_vis == "members" and cm)
+    timetable_entries = (
+        db.query(TimetableEntry).filter(TimetableEntry.member_id == target.id).all()
+        if can_see_tt else []
+    )
+
     return _render(request,
         "profile.html",
         _ctx(request, db, target=target, is_own=is_own,
@@ -3230,8 +3239,88 @@ async def profile_view(request: Request, activity_name: str, db: Session = Depen
              external_achievements=external_achievements,
              target_skills=target_skills, target_links=target_links,
              show_participation=show_participation,
-             personal_posts=personal_posts),
+             personal_posts=personal_posts,
+             timetable_entries=timetable_entries,
+             timetable_visibility=tt_vis,
+             can_see_tt=can_see_tt),
     )
+
+
+_TT_COLORS = ["teal", "blue", "green", "purple", "orange", "pink"]
+_TT_DAYS   = [("mon","월"),("tue","화"),("wed","수"),("thu","목"),("fri","금")]
+
+
+@app.get("/timetable", response_class=HTMLResponse)
+async def timetable_edit_page(request: Request, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    entries = db.query(TimetableEntry).filter(TimetableEntry.member_id == cm.id).all()
+    return _render(request, "timetable/edit.html",
+                   _ctx(request, db, entries=entries, tt_days=_TT_DAYS,
+                        tt_colors=_TT_COLORS,
+                        tt_visibility=getattr(cm, "timetable_visibility", "members") or "members"))
+
+
+@app.post("/timetable/add")
+async def timetable_add(
+    request: Request,
+    subject_name: str = Form(...),
+    day: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    location: str = Form(""),
+    color: str = Form("teal"),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=403)
+    if day not in {d for d, _ in _TT_DAYS}:
+        raise HTTPException(status_code=400)
+    if color not in _TT_COLORS:
+        color = "teal"
+    db.add(TimetableEntry(
+        member_id=cm.id,
+        subject_name=subject_name.strip()[:100],
+        day=day,
+        start_time=start_time,
+        end_time=end_time,
+        location=location.strip()[:100],
+        color=color,
+    ))
+    db.commit()
+    return RedirectResponse(url="/timetable", status_code=303)
+
+
+@app.post("/timetable/{entry_id}/delete")
+async def timetable_delete(request: Request, entry_id: int, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=403)
+    entry = db.query(TimetableEntry).filter(
+        TimetableEntry.id == entry_id, TimetableEntry.member_id == cm.id
+    ).first()
+    if entry:
+        db.delete(entry)
+        db.commit()
+    return RedirectResponse(url="/timetable", status_code=303)
+
+
+@app.post("/timetable/settings")
+async def timetable_settings(
+    request: Request,
+    visibility: str = Form("members"),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=403)
+    if visibility not in ("public", "members", "none"):
+        visibility = "members"
+    cm.timetable_visibility = visibility
+    db.commit()
+    return RedirectResponse(url="/timetable", status_code=303)
 
 
 @app.get("/profile/edit/me", response_class=HTMLResponse)
