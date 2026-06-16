@@ -88,7 +88,8 @@
         <div class="cd-card" id="card-{{ p.id }}">
 
           {# 카드 헤더 (클릭 시 접기/펼치기) #}
-          <button class="cd-card-header" onclick="toggleCard({{ p.id }})" aria-expanded="false">
+          <div class="cd-card-header" onclick="toggleCard({{ p.id }})" role="button" tabindex="0"
+               onkeydown="if(event.key==='Enter'||event.key===' ')toggleCard({{ p.id }})">
             <div class="cd-card-header-left">
               {# 작성자 #}
               {% if p.is_anonymous %}
@@ -125,14 +126,14 @@
               {% set cm = current_member %}
               {% if cm and (cm.id == p.author_id or is_privileged) %}
               <form method="post" action="/course/{{ entry.id }}/post/{{ p.id }}/delete"
-                    onsubmit="event.stopPropagation();return confirm('삭제하시겠습니까?')"
+                    onsubmit="return confirm('삭제하시겠습니까?')"
                     onclick="event.stopPropagation()" style="display:inline">
                 <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
               </form>
               {% endif %}
               <span class="cd-chevron" id="chev-{{ p.id }}">›</span>
             </div>
-          </button>
+          </div>
 
           {# 본문 (기본 숨김) #}
           <div class="cd-card-body" id="body-{{ p.id }}" style="display:none">
