@@ -474,6 +474,34 @@ class SiteBanner(Base):
     expires_at = Column(DateTime, nullable=True)       # 만료일시 (NULL=무기한)
 
 
+class CourseEntry(Base):
+    """교과목 정보 (강의평·시험정보를 묶는 단위)"""
+    __tablename__ = "course_entries"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    subject_name = Column(String(100), nullable=False, index=True)
+    grade        = Column(Integer, nullable=True)    # 1~4학년; None=전학년
+    professor    = Column(String(50), default="")
+    department   = Column(String(100), default="")   # 학과 (선택)
+    created_by   = Column(Integer, nullable=True)    # Member.id
+    created_at   = Column(DateTime, default=_kst_now)
+
+
+class CoursePost(Base):
+    """교과목 강의평 / 시험정보 글"""
+    __tablename__ = "course_posts"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    course_id    = Column(Integer, nullable=False, index=True)  # CourseEntry.id
+    post_type    = Column(String(10), nullable=False)           # "review" | "exam"
+    content      = Column(Text, nullable=False)
+    year         = Column(Integer, nullable=True)
+    semester     = Column(String(10), default="")   # "1" / "2" / "여름" / "겨울"
+    is_anonymous = Column(Boolean, default=False)
+    author_id    = Column(Integer, nullable=True)   # Member.id
+    created_at   = Column(DateTime, default=_kst_now)
+
+
 class PersonalPost(Base):
     """팀원 개인 갤러리 게시물 (인스타그램 스타일)"""
     __tablename__ = "personal_posts"

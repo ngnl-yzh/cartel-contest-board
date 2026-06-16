@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.subject_name }} · 교과목 정보{% endblock %}
+
+{% block content %}
+<main class="course-page">
+  <div class="container" style="max-width:780px">
+
+    {# ── 교과목 헤더 ── #}
+    <div class="course-detail-header">
+      <a href="/course" class="back-link" style="font-size:.85rem;color:var(--muted);text-decoration:none">← 교과목 목록</a>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-top:.5rem;flex-wrap:wrap">
+        <div>
+          <h1 style="font-size:1.5rem;font-weight:800;margin:0 0 .4rem">{{ entry.subject_name }}</h1>
+          <div style="display:flex;flex-wrap:wrap;gap:.5rem .75rem;font-size:.85rem;color:var(--muted)">
+            {% if entry.grade %}<span>📌 {{ entry.grade }}학년</span>{% endif %}
+            {% if entry.professor %}<span>👨‍🏫 {{ entry.professor }}</span>{% endif %}
+            {% if entry.department %}<span>🏫 {{ entry.department }}</span>{% endif %}
+            {% if creator %}<span class="muted">등록: {{ creator.activity_name }}</span>{% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-shrink:0">
+          {% if current_member %}
+          <a href="/course/{{ entry.id }}/write?tab={{ tab }}" class="btn btn-primary btn-sm">✏️ 작성</a>
+          {% endif %}
+          {% if is_privileged %}
+          <form method="post" action="/course/{{ entry.id }}/delete"
+                onsubmit="return confirm('교과목과 모든 글을 삭제하시겠습니까?')">
+            <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── 탭 ── #}
+    <div class="course-tabs" style="display:flex;gap:0;border-bottom:2px solid var(--line);margin:1.25rem 0 1rem">
+      <a href="/course/{{ entry.id }}?tab=review"
+         class="course-tab {% if tab == 'review' %}active{% endif %}">
+        💬 강의평 <span class="tab-count">{{ review_count }}</span>
+      </a>
+      <a href="/course/{{ entry.id }}?tab=exam"
+         class="course-tab {% if tab == 'exam' %}active{% endif %}">
+        📝 시험정보 <span class="tab-count">{{ exam_count }}</span>
+      </a>
+    </div>
+
+    {# ── 글 목록 ── #}
+    {% if posts %}
+    <div style="display:flex;flex-direction:column;gap:.75rem">
+      {% for p in posts %}
+      {% set author = authors.get(p.author_id) if not p.is_anonymous else none %}
+      <div class="course-post-card">
+        <div class="course-post-meta">
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            {% if p.is_anonymous %}
+              <span class="course-anon-badge">익명</span>
+            {% elif author %}
+              <a href="/profile/{{ author.activity_name }}" style="font-size:.85rem;font-weight:600;color:inherit;text-decoration:none">
+                {% if author.profile_image %}
+                  <img src="/uploads/{{ author.profile_image }}" class="mini-avatar" alt="">
+                {% else %}
+                  <span class="mini-avatar-letter">{{ author.activity_name[0]|upper }}</span>
+                {% endif %}
+                {{ author.activity_name }}
+              </a>
+            {% else %}
+              <span class="muted" style="font-size:.85rem">(알 수 없음)</span>
+            {% endif %}
+            {% if p.year or p.semester %}
+            <span class="course-semester-badge">
+              {% if p.year %}{{ p.year }}년 {% endif %}
+              {% if p.semester %}
+                {% for val, label in semesters %}{% if val == p.semester %}{{ label }}{% endif %}{% endfor %}
+              {% endif %}
+            </span>
+            {% endif %}
+            <span class="muted" style="font-size:.75rem">{{ p.created_at.strftime('%Y.%m.%d') }}</span>
+          </div>
+          {% set cm = current_member %}
+          {% if cm and (cm.id == p.author_id or is_privileged) %}
+          <form method="post" action="/course/{{ entry.id }}/post/{{ p.id }}/delete"
+                onsubmit="return confirm('삭제하시겠습니까?')" style="display:inline">
+            <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="course-post-content markdown-body">{{ p.content | markdown | safe }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:2.5rem 0">
+      <p class="empty-text">
+        {% if tab == 'review' %}아직 강의평이 없습니다.{% else %}아직 시험정보가 없습니다.{% endif %}
+      </p>
+      {% if current_member %}
+      <a href="/course/{{ entry.id }}/write?tab={{ tab }}" class="btn btn-primary">
+        {% if tab == 'review' %}첫 강의평 작성{% else %}첫 시험정보 작성{% endif %}
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.course-detail-header {
+  padding: 1.25rem 0 0;
+}
+.course-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .6rem 1.1rem;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.course-tab:hover { color: var(--text-1); }
+.course-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab-count {
+  font-size: .75rem;
+  background: var(--surface-soft, rgba(0,0,0,.06));
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-weight: 700;
+}
+.course-post-card {
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: .875rem 1rem;
+  background: var(--surface);
+}
+.course-post-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .6rem;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.course-post-content { font-size: .92rem; line-height: 1.7; }
+.course-anon-badge {
+  font-size: .75rem;
+  font-weight: 700;
+  background: var(--surface-soft, rgba(0,0,0,.06));
+  border-radius: 8px;
+  padding: 2px 8px;
+  color: var(--muted);
+}
+.course-semester-badge {
+  font-size: .75rem;
+  font-weight: 600;
+  background: rgba(37,99,235,.08);
+  color: var(--primary);
+  border-radius: 8px;
+  padding: 2px 8px;
+}
+</style>
+{% endblock %}

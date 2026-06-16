@@ -78,6 +78,7 @@
         <a href="/calendar" class="c-nav-link {% if '/calendar' in request.url.path %}is-active{% endif %}">Calendar</a>
         <a href="/awards" class="c-nav-link {% if '/awards' in request.url.path %}is-active{% endif %}">Awards</a>
         <a href="/gallery" class="c-nav-link {% if '/gallery' in request.url.path %}is-active{% endif %}">Gallery</a>
+        <a href="/course" class="c-nav-link {% if request.url.path.startswith('/course') %}is-active{% endif %}">Course</a>
       </div>
 
       {# 오른쪽 영역 #}
@@ -176,6 +177,7 @@
         <a href="/calendar" class="c-mobile-link {% if '/calendar' in request.url.path %}is-active{% endif %}">Calendar</a>
         <a href="/awards"   class="c-mobile-link {% if '/awards'   in request.url.path %}is-active{% endif %}">🏅 Awards</a>
         <a href="/gallery"  class="c-mobile-link {% if '/gallery'  in request.url.path %}is-active{% endif %}">📷 Gallery</a>
+        <a href="/course"   class="c-mobile-link {% if request.url.path.startswith('/course') %}is-active{% endif %}">📚 Course</a>
 
         <div class="c-mobile-divider"></div>
 

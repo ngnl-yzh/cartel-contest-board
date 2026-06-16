@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}교과목 등록 · 공모전 보드{% endblock %}
+
+{% block content %}
+<main class="course-page">
+  <div class="container" style="max-width:560px">
+
+    <div class="page-heading" style="margin-bottom:1.5rem">
+      <div>
+        <p class="eyebrow">교과목 정보</p>
+        <h1>교과목 등록</h1>
+      </div>
+      <a href="/course" class="btn btn-outline">취소</a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/course/new" class="post-form">
+      <label class="field">
+        <span>교과목명 <span class="required">*</span></span>
+        <input type="text" name="subject_name" required maxlength="100"
+               placeholder="예: 알고리즘, 운영체제, 데이터베이스" autofocus>
+      </label>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+        <label class="field">
+          <span>주 수강 학년</span>
+          <select name="grade">
+            <option value="">선택 안 함</option>
+            {% for g in [1,2,3,4] %}
+            <option value="{{ g }}">{{ g }}학년</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>담당 교수</span>
+          <input type="text" name="professor" maxlength="50" placeholder="홍길동">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>학과 <span class="muted">(선택)</span></span>
+        <input type="text" name="department" maxlength="100"
+               placeholder="예: 컴퓨터공학과, 소프트웨어학과">
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">등록</button>
+        <a href="/course" class="btn btn-outline">취소</a>
+      </div>
+    </form>
+
+  </div>
+</main>
+{% endblock %}

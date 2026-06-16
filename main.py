@@ -53,6 +53,7 @@ from models import (
     Post, PostLike,
     CalendarEvent,
     GalleryPost, PersonalPost, PushSubscription, SiteBanner, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
+    CourseEntry, CoursePost,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -6943,3 +6944,237 @@ async def admin_jobs_delete_bulk(
         count = db.query(JobPosting).filter(JobPosting.id.in_(job_ids)).delete(synchronize_session=False)
         db.commit()
     return RedirectResponse(url=f"/admin/jobs?bulk_deleted={count}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 교과목 게시판  /course
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SEMESTERS = [("1", "1학기"), ("2", "2학기"), ("여름", "여름학기"), ("겨울", "겨울학기")]
+
+
+@app.get("/course", response_class=HTMLResponse)
+async def course_list(
+    request: Request,
+    q: str = "",
+    grade: str = "",
+    db: Session = Depends(get_db),
+):
+    query = db.query(CourseEntry)
+    if q:
+        query = query.filter(
+            or_(
+                CourseEntry.subject_name.ilike(f"%{q}%"),
+                CourseEntry.professor.ilike(f"%{q}%"),
+                CourseEntry.department.ilike(f"%{q}%"),
+            )
+        )
+    if grade and grade.isdigit():
+        query = query.filter(CourseEntry.grade == int(grade))
+    entries = query.order_by(CourseEntry.subject_name).all()
+
+    # 각 교과목의 글 수 집계
+    ids = [e.id for e in entries]
+    review_counts, exam_counts = {}, {}
+    if ids:
+        from sqlalchemy import func
+        rows = (
+            db.query(CoursePost.course_id, CoursePost.post_type, func.count())
+            .filter(CoursePost.course_id.in_(ids))
+            .group_by(CoursePost.course_id, CoursePost.post_type)
+            .all()
+        )
+        for cid, ptype, cnt in rows:
+            if ptype == "review":
+                review_counts[cid] = cnt
+            else:
+                exam_counts[cid] = cnt
+
+    ctx = _ctx(request, db,
+               entries=entries,
+               review_counts=review_counts,
+               exam_counts=exam_counts,
+               query=q,
+               grade_filter=grade)
+    return _render(request, "course/list.html", ctx)
+
+
+@app.get("/course/new", response_class=HTMLResponse)
+async def course_new_form(request: Request, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    return _render(request, "course/new.html", _ctx(request, db))
+
+
+@app.post("/course/new")
+async def course_new_submit(
+    request: Request,
+    subject_name: str = Form(...),
+    grade: str = Form(""),
+    professor: str = Form(""),
+    department: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    subject_name = subject_name.strip()
+    if not subject_name:
+        return _render(request, "course/new.html", _ctx(request, db, error="교과목명을 입력해주세요."))
+    grade_int = int(grade) if grade and grade.isdigit() and 1 <= int(grade) <= 4 else None
+    entry = CourseEntry(
+        subject_name=subject_name,
+        grade=grade_int,
+        professor=professor.strip(),
+        department=department.strip(),
+        created_by=cm.id,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return RedirectResponse(url=f"/course/{entry.id}", status_code=303)
+
+
+@app.get("/course/{course_id}", response_class=HTMLResponse)
+async def course_detail(
+    request: Request,
+    course_id: int,
+    tab: str = "review",
+    db: Session = Depends(get_db),
+):
+    entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="교과목을 찾을 수 없습니다.")
+
+    post_type = "review" if tab != "exam" else "exam"
+    posts = (
+        db.query(CoursePost)
+        .filter(CoursePost.course_id == course_id, CoursePost.post_type == post_type)
+        .order_by(CoursePost.created_at.desc())
+        .all()
+    )
+
+    # 작성자 정보 조회 (익명이 아닌 경우만)
+    author_ids = {p.author_id for p in posts if not p.is_anonymous and p.author_id}
+    authors = {}
+    if author_ids:
+        for m in db.query(Member).filter(Member.id.in_(author_ids)).all():
+            authors[m.id] = m
+
+    review_count = db.query(CoursePost).filter(
+        CoursePost.course_id == course_id, CoursePost.post_type == "review"
+    ).count()
+    exam_count = db.query(CoursePost).filter(
+        CoursePost.course_id == course_id, CoursePost.post_type == "exam"
+    ).count()
+
+    creator = db.query(Member).filter(Member.id == entry.created_by).first() if entry.created_by else None
+
+    ctx = _ctx(request, db,
+               entry=entry,
+               posts=posts,
+               authors=authors,
+               tab=tab,
+               review_count=review_count,
+               exam_count=exam_count,
+               creator=creator,
+               semesters=_SEMESTERS)
+    return _render(request, "course/detail.html", ctx)
+
+
+@app.get("/course/{course_id}/write", response_class=HTMLResponse)
+async def course_write_form(
+    request: Request,
+    course_id: int,
+    tab: str = "review",
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+    if not entry:
+        raise HTTPException(status_code=404)
+    return _render(request, "course/write.html",
+                   _ctx(request, db, entry=entry, tab=tab, semesters=_SEMESTERS))
+
+
+@app.post("/course/{course_id}/write")
+async def course_write_submit(
+    request: Request,
+    course_id: int,
+    post_type: str = Form(...),
+    content: str = Form(...),
+    year: str = Form(""),
+    semester: str = Form(""),
+    is_anonymous: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+    if not entry:
+        raise HTTPException(status_code=404)
+
+    content = content.strip()
+    if not content:
+        return _render(request, "course/write.html",
+                       _ctx(request, db, entry=entry, tab=post_type,
+                            semesters=_SEMESTERS, error="내용을 입력해주세요."))
+
+    valid_semesters = {s for s, _ in _SEMESTERS}
+    cp = CoursePost(
+        course_id=course_id,
+        post_type="review" if post_type == "review" else "exam",
+        content=content,
+        year=int(year) if year and year.isdigit() else None,
+        semester=semester if semester in valid_semesters else "",
+        is_anonymous=bool(is_anonymous),
+        author_id=cm.id,
+    )
+    db.add(cp)
+    db.commit()
+    return RedirectResponse(url=f"/course/{course_id}?tab={cp.post_type}", status_code=303)
+
+
+@app.post("/course/{course_id}/post/{post_id}/delete")
+async def course_post_delete(
+    request: Request,
+    course_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=401)
+    cp = db.query(CoursePost).filter(
+        CoursePost.id == post_id, CoursePost.course_id == course_id
+    ).first()
+    if not cp:
+        raise HTTPException(status_code=404)
+    is_priv = _is_privileged(request, db)
+    if cp.author_id != cm.id and not is_priv:
+        raise HTTPException(status_code=403)
+    tab = cp.post_type
+    db.delete(cp)
+    db.commit()
+    return RedirectResponse(url=f"/course/{course_id}?tab={tab}", status_code=303)
+
+
+@app.post("/course/{course_id}/delete")
+async def course_entry_delete(
+    request: Request,
+    course_id: int,
+    db: Session = Depends(get_db),
+):
+    if r := _admin_redirect(request):
+        return r
+    entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+    if not entry:
+        raise HTTPException(status_code=404)
+    db.query(CoursePost).filter(CoursePost.course_id == course_id).delete()
+    db.delete(entry)
+    db.commit()
+    return RedirectResponse(url="/course", status_code=303)

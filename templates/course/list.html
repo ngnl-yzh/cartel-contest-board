@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}교과목 정보 · 공모전 보드{% endblock %}
+
+{% block content %}
+<main class="course-page">
+  <div class="container" style="max-width:860px">
+
+    <div class="page-heading" style="margin-bottom:1.25rem">
+      <div>
+        <h1 style="font-size:1.4rem;font-weight:800;margin:0">📚 교과목 정보</h1>
+        <p class="muted" style="font-size:.85rem;margin:4px 0 0">강의평과 시험 정보를 모아보세요.</p>
+      </div>
+      {% if current_member %}
+      <a href="/course/new" class="btn btn-primary">+ 교과목 등록</a>
+      {% endif %}
+    </div>
+
+    {# 검색/필터 #}
+    <form method="get" action="/course" class="course-search-bar" style="display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <input type="search" name="q" value="{{ query or '' }}" placeholder="교과목명 · 교수명 · 학과 검색"
+             style="flex:1;min-width:160px">
+      <select name="grade" style="min-width:90px">
+        <option value="">전체 학년</option>
+        {% for g in [1,2,3,4] %}
+        <option value="{{ g }}" {% if grade_filter == g|string %}selected{% endif %}>{{ g }}학년</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-outline">검색</button>
+      {% if query or grade_filter %}
+      <a href="/course" class="btn btn-ghost">초기화</a>
+      {% endif %}
+    </form>
+
+    {% if entries %}
+    <div class="course-list">
+      {% for e in entries %}
+      <a href="/course/{{ e.id }}" class="course-row">
+        <div class="course-row-main">
+          <span class="course-name">{{ e.subject_name }}</span>
+          {% if e.grade %}
+          <span class="course-grade-badge">{{ e.grade }}학년</span>
+          {% endif %}
+        </div>
+        <div class="course-row-meta">
+          {% if e.professor %}<span class="course-prof">👨‍🏫 {{ e.professor }}</span>{% endif %}
+          {% if e.department %}<span class="course-dept muted">{{ e.department }}</span>{% endif %}
+          <span class="course-counts muted">
+            💬 강의평 {{ review_counts.get(e.id, 0) }}
+            &nbsp;·&nbsp;
+            📝 시험정보 {{ exam_counts.get(e.id, 0) }}
+          </span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p class="empty-text">등록된 교과목이 없습니다.</p>
+      {% if current_member %}
+      <a href="/course/new" class="btn btn-primary">첫 교과목 등록하기</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.course-row {
+  display: block;
+  padding: .875rem 1rem;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: .5rem;
+  transition: border-color .15s, box-shadow .15s;
+}
+.course-row:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(37,99,235,.08);
+}
+.course-row-main {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .3rem;
+}
+.course-name {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.course-grade-badge {
+  font-size: .72rem;
+  font-weight: 700;
+  background: rgba(37,99,235,.1);
+  color: var(--primary);
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.course-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem .75rem;
+  font-size: .82rem;
+}
+.course-prof { color: var(--text-1); }
+.course-counts { font-size: .78rem; }
+</style>
+{% endblock %}
