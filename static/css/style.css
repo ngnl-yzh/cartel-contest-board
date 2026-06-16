@@ -1573,10 +1573,25 @@ select {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 16px;
+    gap: 12px;
+    padding: 24px 20px;
+  }
+  .profile-avatar-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .profile-info {
+    width: 100%;
   }
   .profile-name-row {
     justify-content: center;
+  }
+  .profile-bio {
+    margin: 6px 0 4px;
+  }
+  .profile-since {
+    margin: 2px 0 12px;
   }
   .profile-actions {
     justify-content: center;
@@ -1584,6 +1599,15 @@ select {
   }
   .follow-counts {
     justify-content: center;
+  }
+  .portfolio-stats {
+    justify-content: center;
+  }
+  .profile-stats-divider {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 10px auto;
+    width: 60%;
   }
 
   /* 마이페이지 히어로 */

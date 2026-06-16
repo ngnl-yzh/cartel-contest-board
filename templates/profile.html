@@ -27,10 +27,9 @@
           <p class="profile-bio muted">소개가 없습니다.</p>
         {% endif %}
 
-        {% if target.birthday and target.show_birthday %}
-        <p class="profile-since">🎂 생일: {{ target.birthday }}</p>
-        {% endif %}
-        <p class="profile-since">가입일: {{ target.created_at.strftime('%Y년 %m월 %d일') }}</p>
+        <p class="profile-since">
+          {% if target.birthday and target.show_birthday %}🎂 {{ target.birthday }} &nbsp;·&nbsp; {% endif %}가입 {{ target.created_at.strftime('%Y.%m.%d') }}
+        </p>
 
         <div class="follow-counts">
           <a href="/my/follows" class="follow-count-item">
@@ -61,6 +60,7 @@
 
         {# 통계 뱃지 #}
         {% if stats %}
+        <hr class="profile-stats-divider">
         <div class="portfolio-stats">
           <div class="pstat">
             <span class="pstat-num">{{ stats.total }}</span>
