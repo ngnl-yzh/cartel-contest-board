@@ -18,42 +18,62 @@
     {# ── 검색/필터 패널 ── #}
     <form method="get" action="/course" class="course-filter-panel">
       <div class="course-filter-row">
+
         <div class="course-filter-group">
-          <label class="filter-label">과목명</label>
-          <input type="search" name="subject" value="{{ subject or '' }}"
+          <label class="filter-label" for="f-subject">과목명</label>
+          <input id="f-subject" type="search" name="subject" value="{{ subject or '' }}"
                  placeholder="예: C언어, 알고리즘…" class="filter-input">
         </div>
+
         <div class="course-filter-group">
-          <label class="filter-label">교수명</label>
-          <input type="search" name="prof" value="{{ prof or '' }}"
+          <label class="filter-label" for="f-prof">교수명</label>
+          <input id="f-prof" type="search" name="prof" value="{{ prof or '' }}"
                  placeholder="교수님 성함" class="filter-input">
         </div>
+
         <div class="course-filter-group course-filter-group--narrow">
-          <label class="filter-label">학년</label>
-          <select name="grade" class="filter-select">
+          <label class="filter-label" for="f-grade">학년</label>
+          <select id="f-grade" name="grade" class="filter-select">
             <option value="">전체</option>
             {% for g in [1,2,3,4] %}
             <option value="{{ g }}" {% if grade_filter == g|string %}selected{% endif %}>{{ g }}학년</option>
             {% endfor %}
           </select>
         </div>
+
         <div class="course-filter-group course-filter-group--narrow">
-          <label class="filter-label">학기</label>
-          <select name="semester" class="filter-select">
+          <label class="filter-label" for="f-sem">학기</label>
+          <select id="f-sem" name="semester" class="filter-select">
             <option value="">전체</option>
             {% for val, label in semesters %}
             <option value="{{ val }}" {% if semester_filter == val %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
+
+        {# 버튼을 같은 행에, 입력칸 하단에 맞춰 정렬 #}
+        <div class="course-filter-group course-filter-group--btn">
+          <span class="filter-label">&nbsp;</span>
+          <div style="display:flex;gap:.4rem">
+            <button type="submit" class="btn btn-primary" style="white-space:nowrap">검색</button>
+            {% if subject or prof or grade_filter or semester_filter %}
+            <a href="/course" class="btn btn-ghost" style="white-space:nowrap">초기화</a>
+            {% endif %}
+          </div>
+        </div>
+
       </div>
-      <div class="course-filter-actions">
-        <button type="submit" class="btn btn-primary btn-sm">검색</button>
-        {% if subject or prof or grade_filter or semester_filter %}
-        <a href="/course" class="btn btn-ghost btn-sm">초기화</a>
-        <span class="filter-active-msg">필터 적용 중</span>
+      {% if subject or prof or grade_filter or semester_filter %}
+      <p class="filter-active-msg">
+        필터 적용 중
+        {% if subject %}<span class="filter-chip">과목: {{ subject }}</span>{% endif %}
+        {% if prof %}<span class="filter-chip">교수: {{ prof }}</span>{% endif %}
+        {% if grade_filter %}<span class="filter-chip">{{ grade_filter }}학년</span>{% endif %}
+        {% if semester_filter %}
+          {% for val, label in semesters %}{% if val == semester_filter %}<span class="filter-chip">{{ label }}</span>{% endif %}{% endfor %}
         {% endif %}
-      </div>
+      </p>
+      {% endif %}
     </form>
 
     {# ── 결과 ── #}
@@ -61,11 +81,7 @@
       {% for grade_key, courses in grouped_list %}
       <section class="course-grade-section">
         <div class="course-grade-header">
-          {% if grade_key %}
-          <h2 class="course-grade-title">{{ grade_key }}학년</h2>
-          {% else %}
-          <h2 class="course-grade-title">전학년</h2>
-          {% endif %}
+          <h2 class="course-grade-title">{% if grade_key %}{{ grade_key }}학년{% else %}전학년{% endif %}</h2>
           <span class="course-grade-count">{{ courses | length }}과목</span>
         </div>
         <div class="course-list">
@@ -73,21 +89,21 @@
           <a href="/course/{{ e.id }}" class="course-row">
             <div class="course-row-main">
               <span class="course-name">{{ e.subject_name }}</span>
-              <div class="course-badges">
-                {% if e.semester %}
-                <span class="course-sem-badge">
-                  {% for val, label in semesters %}{% if val == e.semester %}{{ label }}{% endif %}{% endfor %}
-                </span>
-                {% endif %}
-              </div>
+              {% if e.semester %}
+              <span class="course-sem-badge">
+                {% for val, label in semesters %}{% if val == e.semester %}{{ label }}{% endif %}{% endfor %}
+              </span>
+              {% endif %}
             </div>
             <div class="course-row-meta">
-              {% if e.professor %}<span class="course-prof">👨‍🏫 {{ e.professor }}</span>{% endif %}
-              {% if e.department %}<span class="course-dept muted">{{ e.department }}</span>{% endif %}
-              <span class="course-counts">
+              <div class="course-row-meta-left">
+                {% if e.professor %}<span class="course-prof">👨‍🏫 {{ e.professor }}</span>{% endif %}
+                {% if e.department %}<span class="course-dept">{{ e.department }}</span>{% endif %}
+              </div>
+              <div class="course-counts">
                 <span title="강의평">💬 {{ review_counts.get(e.id, 0) }}</span>
                 <span title="시험정보">📝 {{ exam_counts.get(e.id, 0) }}</span>
-              </span>
+              </div>
             </div>
           </a>
           {% endfor %}
@@ -97,11 +113,8 @@
     {% else %}
     <div class="empty-state" style="padding:3rem 0">
       <p class="empty-text">
-        {% if subject or prof or grade_filter or semester_filter %}
-        검색 결과가 없습니다.
-        {% else %}
-        등록된 교과목이 없습니다.
-        {% endif %}
+        {% if subject or prof or grade_filter or semester_filter %}검색 결과가 없습니다.
+        {% else %}등록된 교과목이 없습니다.{% endif %}
       </p>
       {% if current_member and not (subject or prof or grade_filter or semester_filter) %}
       <a href="/course/new" class="btn btn-primary">첫 교과목 등록하기</a>
@@ -120,81 +133,84 @@
   background: var(--surface);
   border: 1.5px solid var(--line);
   border-radius: 14px;
-  padding: 1rem 1.1rem .75rem;
+  padding: 1rem 1.1rem .85rem;
   margin-bottom: 1.5rem;
 }
 .course-filter-row {
   display: flex;
+  align-items: flex-end;   /* 라벨 높이 달라도 입력칸 하단 정렬 */
   gap: .6rem;
   flex-wrap: wrap;
-  margin-bottom: .65rem;
 }
 .course-filter-group {
   display: flex;
   flex-direction: column;
-  gap: .25rem;
+  gap: .28rem;
   flex: 1;
-  min-width: 130px;
+  min-width: 140px;
 }
-.course-filter-group--narrow { flex: 0 0 100px; min-width: 90px; }
+.course-filter-group--narrow { flex: 0 0 96px; min-width: 84px; }
+.course-filter-group--btn    { flex: 0 0 auto; min-width: unset; }
 .filter-label {
-  font-size: .72rem;
+  font-size: .71rem;
   font-weight: 700;
   color: var(--muted);
+  letter-spacing: .04em;
   text-transform: uppercase;
-  letter-spacing: .03em;
+  user-select: none;
 }
 .filter-input, .filter-select {
-  padding: .45rem .65rem;
+  height: 38px;            /* 고정 높이로 버튼과 수평 맞춤 */
+  padding: 0 .65rem;
   border: 1.5px solid var(--line);
   border-radius: 8px;
   font-size: .88rem;
   background: var(--bg);
   color: var(--text-1);
   width: 100%;
+  box-sizing: border-box;
 }
 .filter-input:focus, .filter-select:focus {
   outline: none;
   border-color: var(--primary);
-}
-.course-filter-actions {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.08);
 }
 .filter-active-msg {
-  font-size: .75rem;
+  margin-top: .6rem;
+  font-size: .78rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  background: rgba(37,99,235,.09);
   color: var(--primary);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: .72rem;
+  border-radius: 20px;
+  padding: 1px 9px;
 }
 
 /* ── 학년 섹션 ── */
-.course-grade-section { margin-bottom: 2rem; }
+.course-grade-section { margin-bottom: 1.75rem; }
 .course-grade-header {
   display: flex;
   align-items: center;
-  gap: .6rem;
-  margin-bottom: .6rem;
-  padding-bottom: .4rem;
+  gap: .55rem;
+  margin-bottom: .55rem;
+  padding-bottom: .35rem;
   border-bottom: 2px solid var(--line);
 }
-.course-grade-title {
-  font-size: 1rem;
-  font-weight: 800;
-  margin: 0;
-  color: var(--primary);
-}
-.course-grade-count {
-  font-size: .75rem;
-  color: var(--muted);
-  font-weight: 500;
-}
+.course-grade-title { font-size: .97rem; font-weight: 800; margin: 0; color: var(--primary); }
+.course-grade-count { font-size: .75rem; color: var(--muted); }
 
 /* ── 교과목 행 ── */
 .course-list { display: flex; flex-direction: column; gap: .4rem; }
 .course-row {
   display: block;
-  padding: .75rem 1rem;
+  padding: .72rem 1rem;
   border: 1.5px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
@@ -210,31 +226,43 @@
   display: flex;
   align-items: center;
   gap: .45rem;
-  margin-bottom: .25rem;
+  margin-bottom: .28rem;
 }
 .course-name { font-weight: 700; font-size: .97rem; }
-.course-badges { display: flex; gap: .3rem; }
 .course-sem-badge {
-  font-size: .7rem;
-  font-weight: 700;
-  background: rgba(37,99,235,.09);
-  color: var(--primary);
-  padding: 1px 7px;
-  border-radius: 20px;
+  font-size: .7rem; font-weight: 700;
+  background: rgba(37,99,235,.09); color: var(--primary);
+  padding: 1px 7px; border-radius: 20px;
+  flex-shrink: 0;
 }
 .course-row-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: .35rem .65rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: .5rem;
   font-size: .8rem;
+}
+.course-row-meta-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .55rem;
   color: var(--muted);
 }
-.course-prof { color: var(--text-1); font-weight: 500; }
-.course-counts { display: flex; gap: .5rem; font-size: .76rem; margin-left: auto; }
+.course-prof { color: var(--text-1); font-weight: 600; }
+.course-dept { color: var(--muted); }
+.course-counts {
+  display: flex;
+  gap: .55rem;
+  font-size: .76rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
 
 @media (max-width: 600px) {
-  .course-filter-group--narrow { flex: 1; min-width: 100px; }
-  .course-counts { margin-left: 0; }
+  .course-filter-group--narrow { flex: 1 1 80px; }
+  .course-filter-group--btn { flex: 1 1 100%; }
+  .course-row-meta { flex-direction: column; align-items: flex-start; gap: .2rem; }
+  .course-counts { margin-top: .1rem; }
 }
 </style>
 {% endblock %}
