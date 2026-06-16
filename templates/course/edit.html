@@ -17,7 +17,8 @@
     <div class="alert alert-error">{{ error }}</div>
     {% endif %}
 
-    <form method="post" action="/course/{{ entry.id }}/post/{{ post.id }}/edit" class="post-form">
+    <form method="post" action="/course/{{ entry.id }}/post/{{ post.id }}/edit" class="post-form"
+          enctype="multipart/form-data">
 
       {# 연도 / 학기 #}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
@@ -52,6 +53,60 @@
         <div id="writePreview" class="markdown-body"></div>
       </div>
 
+      {# 파일 첨부 (시험정보만) #}
+      {% if tab == 'exam' %}
+      <div class="field">
+        <span>첨부 파일</span>
+
+        {# 기존 파일 목록 #}
+        {% if existing_files %}
+        <div style="margin-bottom:.6rem">
+          <p style="font-size:.8rem;color:var(--muted);margin:0 0 .4rem">기존 파일 — 삭제할 파일을 체크하세요</p>
+          <div style="display:flex;flex-direction:column;gap:.35rem">
+            {% for cf in existing_files %}
+            <label style="display:flex;align-items:center;gap:.6rem;padding:.45rem .7rem;border:1.5px solid var(--line);border-radius:8px;cursor:pointer;font-size:.84rem">
+              <input type="checkbox" name="delete_file_ids" value="{{ cf.id }}"
+                     style="width:15px;height:15px;flex-shrink:0">
+              <span style="flex:1;font-weight:600;word-break:break-all">
+                {% set ext = cf.original_name.rsplit('.', 1)[-1].lower() %}
+                {% if ext == 'pdf' %}📕
+                {% elif ext in ['hwp','hwpx'] %}📘
+                {% elif ext == 'zip' %}🗜
+                {% else %}📄{% endif %}
+                {{ cf.original_name }}
+              </span>
+              <span style="font-size:.74rem;color:var(--muted);flex-shrink:0">{{ (cf.file_size / 1024)|round(1) }} KB</span>
+              {% if cf.is_approved is none %}
+                <span class="cd-file-badge cd-badge--pending">검토 중</span>
+              {% elif cf.is_approved == false %}
+                <span class="cd-file-badge cd-badge--rejected">반려</span>
+              {% else %}
+                <span class="cd-file-badge cd-badge--approved">승인됨</span>
+              {% endif %}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# 새 파일 추가 #}
+        <div class="course-file-upload-area" id="fileDropArea">
+          <input type="file" name="files" id="fileInput" multiple
+                 accept=".hwp,.hwpx,.html,.htm,.pdf,.zip"
+                 style="display:none" onchange="onFileChange(this)">
+          <div class="course-file-drop-inner" onclick="document.getElementById('fileInput').click()">
+            <span style="font-size:1.5rem">📎</span>
+            <span style="font-size:.88rem;font-weight:600">새 파일 추가 — 클릭하거나 드래그</span>
+            <span class="muted" style="font-size:.78rem">HWP · HWPX · HTML · PDF · ZIP / 파일당 최대 50MB</span>
+          </div>
+          <ul class="course-file-list" id="fileList"></ul>
+        </div>
+        <p class="muted" style="font-size:.75rem;margin-top:.4rem">
+          ⚠️ 새로 업로드된 파일은 <strong>관리자 검토 후</strong> 공개됩니다.
+        </p>
+      </div>
+      {% endif %}
+
       {# 익명 여부 #}
       <label class="field" style="flex-direction:row;align-items:center;gap:.75rem;cursor:pointer">
         <input type="checkbox" name="is_anonymous" value="1" style="width:16px;height:16px"
@@ -70,6 +125,40 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.course-file-upload-area {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  margin-top: .4rem;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.course-file-upload-area.drag-over { border-color: var(--primary); background: rgba(37,99,235,.04); }
+.course-file-drop-inner {
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  padding: 1.25rem; cursor: pointer;
+}
+.course-file-drop-inner:hover { background: rgba(0,0,0,.02); }
+.course-file-list { list-style: none; margin: 0; padding: 0; }
+.course-file-list li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .5rem .75rem; border-top: 1px solid var(--line); font-size: .84rem;
+}
+.course-file-list li .fname { font-weight: 600; word-break: break-all; }
+.course-file-list li .fsize { color: var(--muted); font-size: .76rem; flex-shrink: 0; margin-left: .5rem; }
+.course-file-list li button {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: .9rem; padding: 0 .25rem;
+}
+.course-file-list li button:hover { color: var(--danger, #dc2626); }
+.cd-file-badge {
+  font-size: .68rem; font-weight: 700;
+  border-radius: 20px; padding: 1px 8px; flex-shrink: 0;
+}
+.cd-badge--pending  { background: #fef3c7; color: #92400e; }
+.cd-badge--rejected { background: #fee2e2; color: #991b1b; }
+.cd-badge--approved { background: #d1fae5; color: #065f46; }
+</style>
 <script>
 const content = document.getElementById("writeContent");
 const preview = document.getElementById("writePreview");
@@ -77,6 +166,62 @@ if (content && preview) {
   const update = () => { preview.innerHTML = renderMarkdown(content.value); };
   content.addEventListener("input", update);
   update();
+}
+
+const fileInput = document.getElementById("fileInput");
+const fileList  = document.getElementById("fileList");
+const dropArea  = document.getElementById("fileDropArea");
+let selectedFiles = [];
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(1) + ' MB';
+}
+
+function renderFileList() {
+  if (!fileList) return;
+  fileList.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="fname">📄 ${f.name}</span><span class="fsize">${fmtSize(f.size)}</span>
+      <button type="button" onclick="removeFile(${i})" title="제거">✕</button>`;
+    fileList.appendChild(li);
+  });
+  const dt = new DataTransfer();
+  selectedFiles.forEach(f => dt.items.add(f));
+  if (fileInput) fileInput.files = dt.files;
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function onFileChange(input) {
+  const allowed = ['hwp','hwpx','html','htm','pdf','zip'];
+  Array.from(input.files).forEach(f => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!allowed.includes(ext)) { alert(`${f.name}: 허용되지 않는 파일 형식입니다.`); return; }
+    if (f.size > 50*1024*1024) { alert(`${f.name}: 파일 크기가 50MB를 초과합니다.`); return; }
+    if (!selectedFiles.find(x => x.name === f.name && x.size === f.size)) selectedFiles.push(f);
+  });
+  renderFileList();
+}
+
+if (dropArea) {
+  dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+  dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+  dropArea.addEventListener('drop', e => {
+    e.preventDefault();
+    dropArea.classList.remove('drag-over');
+    if (fileInput) {
+      const dt = new DataTransfer();
+      [...(fileInput.files || []), ...e.dataTransfer.files].forEach(f => dt.items.add(f));
+      fileInput.files = dt.files;
+      onFileChange(fileInput);
+    }
+  });
 }
 </script>
 {% endblock %}

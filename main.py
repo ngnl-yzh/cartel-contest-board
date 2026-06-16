@@ -7234,8 +7234,10 @@ async def course_post_edit_form(
     is_priv = _is_privileged(request, db)
     if cm.id != cp.author_id and not is_priv:
         raise HTTPException(status_code=403)
+    existing_files = db.query(CourseFile).filter(CourseFile.course_post_id == post_id).all()
     return _render(request, "course/edit.html",
-                   _ctx(request, db, entry=entry, post=cp, tab=cp.post_type, semesters=_SEMESTERS))
+                   _ctx(request, db, entry=entry, post=cp, tab=cp.post_type,
+                        semesters=_SEMESTERS, existing_files=existing_files))
 
 
 @app.post("/course/{course_id}/post/{post_id}/edit")
@@ -7247,6 +7249,8 @@ async def course_post_edit_submit(
     year: str = Form(""),
     semester: str = Form(""),
     is_anonymous: str = Form(""),
+    delete_file_ids: List[str] = Form(default=[]),
+    files: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
     cm = _current_member(request, db)
@@ -7261,14 +7265,51 @@ async def course_post_edit_submit(
     content = content.strip()
     if not content:
         entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
+        existing_files = db.query(CourseFile).filter(CourseFile.course_post_id == post_id).all()
         return _render(request, "course/edit.html",
                        _ctx(request, db, entry=entry, post=cp, tab=cp.post_type,
-                            semesters=_SEMESTERS, error="내용을 입력해주세요."))
+                            semesters=_SEMESTERS, existing_files=existing_files,
+                            error="내용을 입력해주세요."))
     valid_semesters = {s for s, _ in _SEMESTERS}
     cp.content = content
     cp.year = int(year) if year and year.isdigit() else None
     cp.semester = semester if semester in valid_semesters else ""
     cp.is_anonymous = bool(is_anonymous)
+
+    # 기존 파일 삭제
+    for fid_str in delete_file_ids:
+        try:
+            fid = int(fid_str)
+        except ValueError:
+            continue
+        cf = db.query(CourseFile).filter(CourseFile.id == fid, CourseFile.course_post_id == post_id).first()
+        if cf:
+            _storage_delete(cf.filename)
+            db.delete(cf)
+
+    # 새 파일 업로드 (시험정보만)
+    if cp.post_type == "exam" and files:
+        for uf in files:
+            if not uf.filename:
+                continue
+            ext = Path(uf.filename).suffix.lstrip(".").lower()
+            if ext not in _COURSE_FILE_EXTS:
+                continue
+            raw = await uf.read()
+            if len(raw) > _COURSE_FILE_MAX:
+                continue
+            safe_name = f"cf_{uuid.uuid4().hex}{Path(uf.filename).suffix}"
+            _storage_upload(raw, safe_name, uf.content_type or "application/octet-stream")
+            db.add(CourseFile(
+                course_post_id=cp.id,
+                course_id=course_id,
+                filename=safe_name,
+                original_name=uf.filename,
+                file_size=len(raw),
+                uploaded_by=cm.id,
+                is_approved=None,
+            ))
+
     db.commit()
     return RedirectResponse(url=f"/course/{course_id}?tab={cp.post_type}", status_code=303)
 
