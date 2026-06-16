@@ -20,10 +20,10 @@
     <div class="tt-scroll-area">
       <div class="tt-grid-body" style="height:{{ grid_h }}px">
 
-        {# 시간 눈금 #}
+        {# 시간 눈금 — 레이블을 선 바로 아래(+2px)에 표시, 마지막(20) 제외 #}
         <div class="tt-time-gutter">
-          {% for h in range(9, 21) %}
-          <div class="tt-hour-label" style="top:{{ (h - 9) * 60 }}px">{{ h }}</div>
+          {% for h in range(9, 20) %}
+          <div class="tt-hour-label" style="top:{{ (h - 9) * 60 + 2 }}px">{{ h }}</div>
           {% endfor %}
         </div>
 
@@ -93,9 +93,12 @@
 
 /* ── 스크롤 영역 ── */
 .tt-scroll-area {
-  overflow-y: auto;
+  overflow-y: scroll;
   max-height: 520px;
+  /* 스크롤바 숨김 (마우스휠·터치 스크롤은 유지) */
+  scrollbar-width: none;
 }
+.tt-scroll-area::-webkit-scrollbar { display: none; }
 
 /* ── 그리드 바디 ── */
 .tt-grid-body {
@@ -118,7 +121,6 @@
   font-size: .65rem;
   color: var(--muted);
   line-height: 1;
-  transform: translateY(-50%);
 }
 
 /* ── 요일 컬럼 ── */
