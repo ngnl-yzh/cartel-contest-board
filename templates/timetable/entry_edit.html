@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}수업 수정 · 시간표{% endblock %}
+
+{% block content %}
+<main class="container" style="max-width:520px;padding-top:28px;padding-bottom:80px">
+
+  <div class="page-heading" style="margin-bottom:1.5rem">
+    <div>
+      <p class="eyebrow">시간표</p>
+      <h1>수업 수정</h1>
+    </div>
+    <a href="/timetable" class="btn btn-outline btn-sm">취소</a>
+  </div>
+
+  <form method="post" action="/timetable/{{ entry.id }}/edit" class="post-form">
+
+    <label class="field">
+      <span>과목명 <span class="required">*</span></span>
+      <input type="text" name="subject_name" required maxlength="100"
+             value="{{ entry.subject_name }}">
+    </label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <label class="field">
+        <span>요일 <span class="required">*</span></span>
+        <select name="day" required>
+          {% for val, label in tt_days %}
+          <option value="{{ val }}" {% if entry.day == val %}selected{% endif %}>{{ label }}요일</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span>강의실</span>
+        <input type="text" name="location" maxlength="100" value="{{ entry.location or '' }}">
+      </label>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <label class="field">
+        <span>시작 시간 <span class="required">*</span></span>
+        <input type="time" name="start_time" required value="{{ entry.start_time }}">
+      </label>
+      <label class="field">
+        <span>종료 시간 <span class="required">*</span></span>
+        <input type="time" name="end_time" required value="{{ entry.end_time }}">
+      </label>
+    </div>
+
+    <div class="field">
+      <span>색상</span>
+      <div class="tt-color-row">
+        {% for c in tt_colors %}
+        <label class="tt-color-opt">
+          <input type="radio" name="color" value="{{ c }}"
+                 {% if entry.color == c %}checked{% endif %} style="display:none">
+          <span class="tt-color-swatch tt-color-{{ c }}" title="{{ c }}"></span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <a href="/timetable" class="btn btn-outline">취소</a>
+    </div>
+
+  </form>
+
+</main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.tt-color-row { display:flex; gap:.4rem; margin-top:.4rem; flex-wrap:wrap; }
+.tt-color-opt { cursor:pointer; }
+.tt-color-swatch {
+  display:block; width:28px; height:28px; border-radius:50%;
+  border:2.5px solid transparent;
+  transition:transform .12s, border-color .12s;
+}
+.tt-color-opt input:checked + .tt-color-swatch { border-color:var(--text-1); transform:scale(1.2); }
+.tt-color-swatch:hover { transform:scale(1.1); }
+.tt-color-teal   { background:#99e6e6; }
+.tt-color-blue   { background:#93c5fd; }
+.tt-color-green  { background:#86efac; }
+.tt-color-purple { background:#c4b5fd; }
+.tt-color-orange { background:#fcd34d; }
+.tt-color-pink   { background:#f9a8d4; }
+</style>
+{% endblock %}

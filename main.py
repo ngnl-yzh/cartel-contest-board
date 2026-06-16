@@ -3307,6 +3307,52 @@ async def timetable_delete(request: Request, entry_id: int, db: Session = Depend
     return RedirectResponse(url="/timetable", status_code=303)
 
 
+@app.get("/timetable/{entry_id}/edit", response_class=HTMLResponse)
+async def timetable_entry_edit_form(request: Request, entry_id: int, db: Session = Depends(get_db)):
+    cm = _current_member(request, db)
+    if not cm:
+        return RedirectResponse(url="/member/login", status_code=303)
+    entry = db.query(TimetableEntry).filter(
+        TimetableEntry.id == entry_id, TimetableEntry.member_id == cm.id
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404)
+    return _render(request, "timetable/entry_edit.html",
+                   _ctx(request, db, entry=entry, tt_days=_TT_DAYS, tt_colors=_TT_COLORS))
+
+
+@app.post("/timetable/{entry_id}/edit")
+async def timetable_entry_edit_submit(
+    request: Request,
+    entry_id: int,
+    subject_name: str = Form(...),
+    day: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    location: str = Form(""),
+    color: str = Form("teal"),
+    db: Session = Depends(get_db),
+):
+    cm = _current_member(request, db)
+    if not cm:
+        raise HTTPException(status_code=403)
+    entry = db.query(TimetableEntry).filter(
+        TimetableEntry.id == entry_id, TimetableEntry.member_id == cm.id
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404)
+    if day not in {d for d, _ in _TT_DAYS}:
+        raise HTTPException(status_code=400)
+    entry.subject_name = subject_name.strip()[:100]
+    entry.day = day
+    entry.start_time = start_time
+    entry.end_time = end_time
+    entry.location = location.strip()[:100]
+    entry.color = color if color in _TT_COLORS else "teal"
+    db.commit()
+    return RedirectResponse(url="/timetable", status_code=303)
+
+
 @app.post("/timetable/settings")
 async def timetable_settings(
     request: Request,

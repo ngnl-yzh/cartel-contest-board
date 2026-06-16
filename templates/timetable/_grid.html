@@ -1,95 +1,112 @@
 {# 시간표 그리드 — entries 변수 필요 #}
-{# 시간 범위: 09:00 ~ 19:00 (600분), 1분 = 1px #}
+{# 시간 범위: 09:00 ~ 20:00 (660분), 1분 = 1px #}
 {% set grid_start = 9 * 60 %}
-{% set grid_end   = 19 * 60 %}
+{% set grid_end   = 20 * 60 %}
 {% set grid_h     = grid_end - grid_start %}
 {% set days = [('mon','월'),('tue','화'),('wed','수'),('thu','목'),('fri','금')] %}
 
-<div class="tt-grid-wrap">
-  {# 헤더 행 #}
-  <div class="tt-grid-header">
-    <div class="tt-time-col"></div>
-    {% for _, label in days %}
-    <div class="tt-day-head">{{ label }}</div>
-    {% endfor %}
-  </div>
+<div class="tt-grid-outer">
+  <div class="tt-grid-inner">
 
-  {# 바디 #}
-  <div class="tt-grid-body">
-    {# 시간 눈금 (왼쪽) + 가로선 #}
-    <div class="tt-time-col">
-      {% for h in range(9, 20) %}
-      <div class="tt-hour-label" style="top:{{ (h - 9) * 60 }}px">{{ h }}</div>
+    {# 헤더 (sticky) #}
+    <div class="tt-grid-header">
+      <div class="tt-time-gutter"></div>
+      {% for _, label in days %}
+      <div class="tt-day-head">{{ label }}</div>
       {% endfor %}
     </div>
 
-    {# 각 요일 컬럼 #}
-    {% for day_key, _ in days %}
-    <div class="tt-day-col">
-      {# 가로 줄 (매 시간마다) #}
-      {% for h in range(9, 20) %}
-      <div class="tt-hour-line" style="top:{{ (h - 9) * 60 }}px"></div>
-      {% endfor %}
+    {# 스크롤 영역 #}
+    <div class="tt-scroll-area">
+      <div class="tt-grid-body" style="height:{{ grid_h }}px">
 
-      {# 수업 블록 #}
-      {% for e in entries if e.day == day_key %}
-        {% set sh = e.start_time.split(':')[0]|int %}
-        {% set sm = e.start_time.split(':')[1]|int %}
-        {% set eh = e.end_time.split(':')[0]|int %}
-        {% set em = e.end_time.split(':')[1]|int %}
-        {% set top_px  = (sh * 60 + sm - grid_start) %}
-        {% set height_px = (eh * 60 + em - sh * 60 - sm) %}
-        {% if top_px >= 0 and height_px > 0 %}
-        <div class="tt-block tt-block-{{ e.color }}"
-             style="top:{{ top_px }}px;height:{{ height_px }}px">
-          <span class="tt-block-name">{{ e.subject_name }}</span>
-          <span class="tt-block-time">{{ e.start_time }}</span>
-          {% if e.location %}<span class="tt-block-loc">{{ e.location }}</span>{% endif %}
+        {# 시간 눈금 #}
+        <div class="tt-time-gutter">
+          {% for h in range(9, 21) %}
+          <div class="tt-hour-label" style="top:{{ (h - 9) * 60 }}px">{{ h }}</div>
+          {% endfor %}
         </div>
-        {% endif %}
-      {% endfor %}
+
+        {# 요일 컬럼 #}
+        {% for day_key, _ in days %}
+        <div class="tt-day-col">
+          {% for h in range(9, 21) %}
+          <div class="tt-hour-line" style="top:{{ (h - 9) * 60 }}px"></div>
+          {% endfor %}
+
+          {% for e in entries if e.day == day_key %}
+            {% set sh = e.start_time.split(':')[0]|int %}
+            {% set sm = e.start_time.split(':')[1]|int %}
+            {% set eh = e.end_time.split(':')[0]|int %}
+            {% set em = e.end_time.split(':')[1]|int %}
+            {% set top_px    = sh * 60 + sm - grid_start %}
+            {% set height_px = eh * 60 + em - sh * 60 - sm %}
+            {% if top_px >= 0 and height_px > 0 %}
+            <div class="tt-block tt-block-{{ e.color }}
+                        {% if height_px < 40 %}tt-block--tiny{% elif height_px < 70 %}tt-block--small{% endif %}"
+                 style="top:{{ top_px }}px;height:{{ [height_px - 2, 4]|max }}px">
+              <span class="tt-block-name">{{ e.subject_name }}</span>
+              <span class="tt-block-meta">{{ e.start_time }}{% if e.location %} · {{ e.location }}{% endif %}</span>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+
+      </div>
     </div>
-    {% endfor %}
+
   </div>
 </div>
 
 <style>
-/* ── 그리드 래퍼 ── */
-.tt-grid-wrap {
+/* ── 외부 래퍼: 모바일 가로 스크롤 ── */
+.tt-grid-outer {
   border: 1.5px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
-  font-size: .8rem;
-  user-select: none;
+}
+.tt-grid-inner {
+  min-width: 360px;   /* 5요일 최소 너비 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── 헤더 ── */
 .tt-grid-header {
   display: grid;
-  grid-template-columns: 36px repeat(5, 1fr);
-  border-bottom: 1.5px solid var(--line);
+  grid-template-columns: 32px repeat(5, 1fr);
   background: var(--surface);
+  border-bottom: 1.5px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .tt-day-head {
-  padding: .5rem 0;
+  padding: .45rem 0;
   text-align: center;
+  font-size: .8rem;
   font-weight: 700;
-  font-size: .82rem;
   color: var(--muted);
   border-left: 1px solid var(--line);
 }
 
-/* ── 바디 ── */
+/* ── 스크롤 영역 ── */
+.tt-scroll-area {
+  overflow-y: auto;
+  max-height: 520px;
+}
+
+/* ── 그리드 바디 ── */
 .tt-grid-body {
   display: grid;
-  grid-template-columns: 36px repeat(5, 1fr);
-  height: {{ grid_h }}px;
+  grid-template-columns: 32px repeat(5, 1fr);
   position: relative;
   background: var(--bg, #0f0f1a);
 }
 
 /* ── 시간 눈금 ── */
-.tt-time-col {
+.tt-time-gutter {
   position: relative;
   background: var(--surface);
   border-right: 1px solid var(--line);
@@ -98,7 +115,7 @@
   position: absolute;
   left: 0; right: 0;
   text-align: center;
-  font-size: .7rem;
+  font-size: .65rem;
   color: var(--muted);
   line-height: 1;
   transform: translateY(-50%);
@@ -108,58 +125,54 @@
 .tt-day-col {
   position: relative;
   border-left: 1px solid var(--line);
+  overflow: hidden;  /* 블록이 열 밖으로 안 나가도록 */
 }
 .tt-hour-line {
   position: absolute;
   left: 0; right: 0;
   height: 1px;
   background: var(--line);
-  opacity: .4;
+  opacity: .35;
+  pointer-events: none;
 }
 
 /* ── 수업 블록 ── */
 .tt-block {
   position: absolute;
   left: 2px; right: 2px;
-  border-radius: 6px;
-  padding: 4px 6px;
+  border-radius: 5px;
+  padding: 3px 5px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 1px;
   cursor: default;
+  box-sizing: border-box;
 }
 .tt-block-name {
+  font-size: .74rem;
   font-weight: 700;
-  font-size: .78rem;
-  line-height: 1.3;
+  line-height: 1.25;
   word-break: keep-all;
 }
-.tt-block-time {
-  font-size: .68rem;
+.tt-block-meta {
+  font-size: .63rem;
   opacity: .75;
-}
-.tt-block-loc {
-  font-size: .68rem;
-  opacity: .7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ── 블록 색상 ── */
-.tt-block-teal   { background: #99e6e6; color: #0a4a4a; }
-.tt-block-blue   { background: #93c5fd; color: #1e3a5f; }
+/* 블록이 작을 때 메타 숨기기 */
+.tt-block--small .tt-block-meta { display: none; }
+.tt-block--tiny  .tt-block-meta { display: none; }
+.tt-block--tiny  .tt-block-name { font-size: .65rem; }
+
+/* ── 색상 ── */
+.tt-block-teal   { background: #99e6e6; color: #073a3a; }
+.tt-block-blue   { background: #93c5fd; color: #1a3557; }
 .tt-block-green  { background: #86efac; color: #14532d; }
 .tt-block-purple { background: #c4b5fd; color: #3b0764; }
 .tt-block-orange { background: #fcd34d; color: #78350f; }
 .tt-block-pink   { background: #f9a8d4; color: #831843; }
-
-/* ── 모바일 ── */
-@media (max-width: 600px) {
-  .tt-grid-body { height: {{ (grid_h * 0.7)|int }}px; }
-  .tt-block-name { font-size: .7rem; }
-  .tt-block-time, .tt-block-loc { display: none; }
-  .tt-time-col { display: none; }
-  .tt-grid-header { grid-template-columns: repeat(5, 1fr); }
-  .tt-grid-body   { grid-template-columns: repeat(5, 1fr); }
-  .tt-day-head { border-left: 1px solid var(--line); }
-}
 </style>
