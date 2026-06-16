@@ -5,17 +5,22 @@
 <main class="course-page">
   <div class="container" style="max-width:780px">
 
-    {# ── 교과목 헤더 ── #}
-    <div class="course-detail-header">
-      <a href="/course" class="back-link" style="font-size:.85rem;color:var(--muted);text-decoration:none">← 교과목 목록</a>
+    {# ── 헤더 ── #}
+    <div style="padding:1.25rem 0 0">
+      <a href="/course" style="font-size:.85rem;color:var(--muted);text-decoration:none">← 교과목 목록</a>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-top:.5rem;flex-wrap:wrap">
         <div>
           <h1 style="font-size:1.5rem;font-weight:800;margin:0 0 .4rem">{{ entry.subject_name }}</h1>
-          <div style="display:flex;flex-wrap:wrap;gap:.5rem .75rem;font-size:.85rem;color:var(--muted)">
-            {% if entry.grade %}<span>📌 {{ entry.grade }}학년</span>{% endif %}
+          <div style="display:flex;flex-wrap:wrap;gap:.4rem .75rem;font-size:.84rem;color:var(--muted)">
+            {% if entry.grade %}
+              <span>{{ entry.grade }}학년
+                {% if entry.semester %}
+                  {% for val, label in semesters %}{% if val == entry.semester %} · {{ label }}{% endif %}{% endfor %}
+                {% endif %}
+              </span>
+            {% endif %}
             {% if entry.professor %}<span>👨‍🏫 {{ entry.professor }}</span>{% endif %}
             {% if entry.department %}<span>🏫 {{ entry.department }}</span>{% endif %}
-            {% if creator %}<span class="muted">등록: {{ creator.activity_name }}</span>{% endif %}
           </div>
         </div>
         <div style="display:flex;gap:.5rem;flex-shrink:0">
@@ -33,73 +38,136 @@
     </div>
 
     {# ── 탭 ── #}
-    <div class="course-tabs" style="display:flex;gap:0;border-bottom:2px solid var(--line);margin:1.25rem 0 1rem">
+    <div style="display:flex;border-bottom:2px solid var(--line);margin:1.25rem 0 0">
       <a href="/course/{{ entry.id }}?tab=review"
-         class="course-tab {% if tab == 'review' %}active{% endif %}">
-        💬 강의평 <span class="tab-count">{{ review_count }}</span>
+         class="cd-tab {% if tab == 'review' %}active{% endif %}">
+        💬 강의평 <span class="cd-tab-count">{{ review_count }}</span>
       </a>
       <a href="/course/{{ entry.id }}?tab=exam"
-         class="course-tab {% if tab == 'exam' %}active{% endif %}">
-        📝 시험정보 <span class="tab-count">{{ exam_count }}</span>
+         class="cd-tab {% if tab == 'exam' %}active{% endif %}">
+        📝 시험정보 <span class="cd-tab-count">{{ exam_count }}</span>
       </a>
     </div>
 
-    {# ── 글 목록 ── #}
-    {% if posts %}
-    <div style="display:flex;flex-direction:column;gap:.75rem">
-      {% for p in posts %}
-      {% set author = authors.get(p.author_id) if not p.is_anonymous else none %}
-      <div class="course-post-card">
-        <div class="course-post-meta">
-          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-            {% if p.is_anonymous %}
-              <span class="course-anon-badge">익명</span>
-            {% elif author %}
-              <a href="/profile/{{ author.activity_name }}" style="font-size:.85rem;font-weight:600;color:inherit;text-decoration:none">
-                {% if author.profile_image %}
-                  <img src="/uploads/{{ author.profile_image }}" class="mini-avatar" alt="">
-                {% else %}
-                  <span class="mini-avatar-letter">{{ author.activity_name[0]|upper }}</span>
-                {% endif %}
-                {{ author.activity_name }}
-              </a>
-            {% else %}
-              <span class="muted" style="font-size:.85rem">(알 수 없음)</span>
-            {% endif %}
-            {% if p.year or p.semester %}
-            <span class="course-semester-badge">
-              {% if p.year %}{{ p.year }}년 {% endif %}
-              {% if p.semester %}
-                {% for val, label in semesters %}{% if val == p.semester %}{{ label }}{% endif %}{% endfor %}
-              {% endif %}
-            </span>
-            {% endif %}
-            <span class="muted" style="font-size:.75rem">{{ p.created_at.strftime('%Y.%m.%d') }}</span>
-          </div>
-          {% set cm = current_member %}
-          {% if cm and (cm.id == p.author_id or is_privileged) %}
-          <form method="post" action="/course/{{ entry.id }}/post/{{ p.id }}/delete"
-                onsubmit="return confirm('삭제하시겠습니까?')" style="display:inline">
-            <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
-          </form>
-          {% endif %}
-        </div>
-        <div class="course-post-content markdown-body">{{ p.content | markdown | safe }}</div>
+    {# ── 연도·학기 필터 ── #}
+    {% if avail_years or avail_sems %}
+    <div class="cd-filter-bar">
+      {# 연도 필터 #}
+      {% if avail_years %}
+      <div class="cd-filter-group">
+        <a href="/course/{{ entry.id }}?tab={{ tab }}{% if sem_filter %}&sem={{ sem_filter }}{% endif %}"
+           class="cd-filter-pill {% if not year_filter %}active{% endif %}">전체</a>
+        {% for y in avail_years %}
+        <a href="/course/{{ entry.id }}?tab={{ tab }}&year={{ y }}{% if sem_filter %}&sem={{ sem_filter }}{% endif %}"
+           class="cd-filter-pill {% if year_filter == y|string %}active{% endif %}">{{ y }}년</a>
+        {% endfor %}
       </div>
-      {% endfor %}
+      {% endif %}
+      {# 학기 필터 #}
+      {% if avail_sems %}
+      <div class="cd-filter-group">
+        <a href="/course/{{ entry.id }}?tab={{ tab }}{% if year_filter %}&year={{ year_filter }}{% endif %}"
+           class="cd-filter-pill {% if not sem_filter %}active{% endif %}">전체 학기</a>
+        {% for s in avail_sems %}
+        {% set sem_label = '' %}
+        {% for val, label in semesters %}{% if val == s %}{% set sem_label = label %}{% endif %}{% endfor %}
+        <a href="/course/{{ entry.id }}?tab={{ tab }}&sem={{ s }}{% if year_filter %}&year={{ year_filter }}{% endif %}"
+           class="cd-filter-pill {% if sem_filter == s %}active{% endif %}">{{ sem_label or s }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
+    {% endif %}
+
+    {# ── 글 목록 ── #}
+    <div style="margin-top:1rem">
+    {% if posts %}
+      <div style="display:flex;flex-direction:column;gap:.5rem" id="postList">
+        {% for p in posts %}
+        {% set author = authors.get(p.author_id) if not p.is_anonymous else none %}
+        <div class="cd-card" id="card-{{ p.id }}">
+
+          {# 카드 헤더 (클릭 시 접기/펼치기) #}
+          <button class="cd-card-header" onclick="toggleCard({{ p.id }})" aria-expanded="false">
+            <div class="cd-card-header-left">
+              {# 작성자 #}
+              {% if p.is_anonymous %}
+                <span class="cd-anon">익명</span>
+              {% elif author %}
+                <span class="cd-author">
+                  {% if author.profile_image %}
+                    <img src="/uploads/{{ author.profile_image }}" class="mini-avatar" alt="">
+                  {% else %}
+                    <span class="mini-avatar-letter">{{ author.activity_name[0]|upper }}</span>
+                  {% endif %}
+                  {{ author.activity_name }}
+                </span>
+              {% else %}
+                <span class="cd-anon">(알 수 없음)</span>
+              {% endif %}
+
+              {# 연도·학기 뱃지 #}
+              {% if p.year or p.semester %}
+              <span class="cd-sem-badge">
+                {% if p.year %}{{ p.year }}년 {% endif %}
+                {% if p.semester %}{% for val, label in semesters %}{% if val == p.semester %}{{ label }}{% endif %}{% endfor %}{% endif %}
+              </span>
+              {% endif %}
+
+              {# 날짜 #}
+              <span class="cd-date">{{ p.created_at.strftime('%Y.%m.%d') }}</span>
+
+              {# 미리보기 (접힌 상태에서만 보임) #}
+              <span class="cd-preview" id="preview-{{ p.id }}">{{ p.content | truncate(60, True, '…') }}</span>
+            </div>
+
+            <div class="cd-card-header-right">
+              {% set cm = current_member %}
+              {% if cm and (cm.id == p.author_id or is_privileged) %}
+              <form method="post" action="/course/{{ entry.id }}/post/{{ p.id }}/delete"
+                    onsubmit="event.stopPropagation();return confirm('삭제하시겠습니까?')"
+                    onclick="event.stopPropagation()" style="display:inline">
+                <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
+              </form>
+              {% endif %}
+              <span class="cd-chevron" id="chev-{{ p.id }}">›</span>
+            </div>
+          </button>
+
+          {# 본문 (기본 숨김) #}
+          <div class="cd-card-body" id="body-{{ p.id }}" style="display:none">
+            <div class="cd-content markdown-body">{{ p.content | markdown | safe }}</div>
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+
+      {# 전체 펼치기 / 접기 버튼 #}
+      <div style="text-align:center;margin-top:1rem">
+        <button class="btn btn-ghost btn-sm" onclick="toggleAll(true)">전체 펼치기</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleAll(false)">전체 접기</button>
+      </div>
+
     {% else %}
     <div class="empty-state" style="padding:2.5rem 0">
       <p class="empty-text">
-        {% if tab == 'review' %}아직 강의평이 없습니다.{% else %}아직 시험정보가 없습니다.{% endif %}
+        {% if year_filter or sem_filter %}
+          해당 조건의 글이 없습니다.
+        {% elif tab == 'review' %}
+          아직 강의평이 없습니다.
+        {% else %}
+          아직 시험정보가 없습니다.
+        {% endif %}
       </p>
-      {% if current_member %}
+      {% if current_member and not (year_filter or sem_filter) %}
       <a href="/course/{{ entry.id }}/write?tab={{ tab }}" class="btn btn-primary">
         {% if tab == 'review' %}첫 강의평 작성{% else %}첫 시험정보 작성{% endif %}
       </a>
       {% endif %}
     </div>
     {% endif %}
+    </div>
 
   </div>
 </main>
@@ -107,61 +175,125 @@
 
 {% block scripts %}
 <style>
-.course-detail-header {
-  padding: 1.25rem 0 0;
+/* ── 탭 ── */
+.cd-tab {
+  display: inline-flex; align-items: center; gap:.35rem;
+  padding:.6rem 1.1rem; font-size:.9rem; font-weight:600;
+  color:var(--muted); text-decoration:none;
+  border-bottom:2.5px solid transparent; margin-bottom:-2px;
+  transition:color .15s,border-color .15s;
 }
-.course-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  padding: .6rem 1.1rem;
-  font-size: .9rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 2.5px solid transparent;
-  margin-bottom: -2px;
-  transition: color .15s, border-color .15s;
+.cd-tab:hover { color:var(--text-1); }
+.cd-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+.cd-tab-count {
+  font-size:.73rem; font-weight:700;
+  background:rgba(0,0,0,.06); border-radius:10px; padding:1px 6px;
 }
-.course-tab:hover { color: var(--text-1); }
-.course-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
-.tab-count {
-  font-size: .75rem;
-  background: var(--surface-soft, rgba(0,0,0,.06));
-  border-radius: 10px;
-  padding: 1px 6px;
-  font-weight: 700;
+
+/* ── 필터 바 ── */
+.cd-filter-bar {
+  display: flex; flex-direction:column; gap:.4rem;
+  padding:.75rem 0 .25rem;
+  border-bottom:1px solid var(--line);
+  margin-bottom:.25rem;
 }
-.course-post-card {
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: .875rem 1rem;
-  background: var(--surface);
+.cd-filter-group { display:flex; flex-wrap:wrap; gap:.35rem; }
+.cd-filter-pill {
+  display:inline-block; padding:3px 11px;
+  border:1.5px solid var(--line); border-radius:20px;
+  font-size:.78rem; font-weight:600; color:var(--muted);
+  text-decoration:none; transition:all .15s;
+  background:var(--surface);
 }
-.course-post-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: .6rem;
-  flex-wrap: wrap;
-  gap: .4rem;
+.cd-filter-pill:hover { border-color:var(--primary); color:var(--primary); }
+.cd-filter-pill.active {
+  background:var(--primary); border-color:var(--primary);
+  color:#fff;
 }
-.course-post-content { font-size: .92rem; line-height: 1.7; }
-.course-anon-badge {
-  font-size: .75rem;
-  font-weight: 700;
-  background: var(--surface-soft, rgba(0,0,0,.06));
-  border-radius: 8px;
-  padding: 2px 8px;
-  color: var(--muted);
+
+/* ── 카드 ── */
+.cd-card {
+  border:1.5px solid var(--line); border-radius:12px;
+  background:var(--surface); overflow:hidden;
+  transition:border-color .15s;
 }
-.course-semester-badge {
-  font-size: .75rem;
-  font-weight: 600;
-  background: rgba(37,99,235,.08);
-  color: var(--primary);
-  border-radius: 8px;
-  padding: 2px 8px;
+.cd-card.is-open { border-color:var(--primary); }
+
+.cd-card-header {
+  width:100%; display:flex; align-items:center;
+  justify-content:space-between; gap:.5rem;
+  padding:.75rem 1rem; background:none; border:none;
+  cursor:pointer; text-align:left;
+}
+.cd-card-header:hover { background:rgba(0,0,0,.02); }
+.cd-card-header-left {
+  display:flex; align-items:center; gap:.45rem;
+  flex-wrap:wrap; flex:1; min-width:0;
+}
+.cd-card-header-right {
+  display:flex; align-items:center; gap:.4rem; flex-shrink:0;
+}
+
+.cd-author { font-size:.85rem; font-weight:600; display:flex; align-items:center; gap:.3rem; }
+.cd-anon {
+  font-size:.78rem; font-weight:700; color:var(--muted);
+  background:rgba(0,0,0,.06); border-radius:8px; padding:1px 8px;
+}
+.cd-sem-badge {
+  font-size:.73rem; font-weight:700;
+  background:rgba(37,99,235,.09); color:var(--primary);
+  border-radius:8px; padding:1px 8px;
+}
+.cd-date { font-size:.74rem; color:var(--muted); }
+
+.cd-preview {
+  font-size:.82rem; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  max-width:200px;
+}
+.cd-card.is-open .cd-preview { display:none; }
+
+.cd-chevron {
+  font-size:1.2rem; color:var(--muted); line-height:1;
+  transition:transform .2s; display:inline-block;
+}
+.cd-card.is-open .cd-chevron { transform:rotate(90deg); }
+
+.cd-card-body { padding:0 1rem 1rem; }
+.cd-content { font-size:.92rem; line-height:1.75; }
+
+@media (max-width:600px) {
+  .cd-preview { max-width:100px; }
 }
 </style>
+
+<script>
+function toggleCard(id) {
+  const card = document.getElementById('card-' + id);
+  const body = document.getElementById('body-' + id);
+  const isOpen = card.classList.contains('is-open');
+  if (isOpen) {
+    body.style.display = 'none';
+    card.classList.remove('is-open');
+  } else {
+    body.style.display = 'block';
+    card.classList.add('is-open');
+  }
+}
+
+function toggleAll(open) {
+  document.querySelectorAll('.cd-card').forEach(card => {
+    const id = card.id.replace('card-', '');
+    const body = document.getElementById('body-' + id);
+    if (!body) return;
+    if (open) {
+      body.style.display = 'block';
+      card.classList.add('is-open');
+    } else {
+      body.style.display = 'none';
+      card.classList.remove('is-open');
+    }
+  });
+}
+</script>
 {% endblock %}

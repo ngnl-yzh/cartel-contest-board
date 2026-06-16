@@ -7056,6 +7056,8 @@ async def course_detail(
     request: Request,
     course_id: int,
     tab: str = "review",
+    year: str = "",
+    sem: str = "",
     db: Session = Depends(get_db),
 ):
     entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
@@ -7063,14 +7065,25 @@ async def course_detail(
         raise HTTPException(status_code=404, detail="교과목을 찾을 수 없습니다.")
 
     post_type = "review" if tab != "exam" else "exam"
-    posts = (
-        db.query(CoursePost)
-        .filter(CoursePost.course_id == course_id, CoursePost.post_type == post_type)
-        .order_by(CoursePost.created_at.desc())
-        .all()
+    base_q = db.query(CoursePost).filter(
+        CoursePost.course_id == course_id, CoursePost.post_type == post_type
     )
 
-    # 작성자 정보 조회 (익명이 아닌 경우만)
+    # 필터용 전체 목록에서 연도·학기 목록 수집
+    all_posts = base_q.all()
+    avail_years = sorted({p.year for p in all_posts if p.year}, reverse=True)
+    avail_sems = sorted({p.semester for p in all_posts if p.semester},
+                        key=lambda s: {"1": 0, "2": 1, "여름": 2, "겨울": 3}.get(s, 9))
+
+    # 필터 적용
+    q = base_q
+    if year and year.isdigit():
+        q = q.filter(CoursePost.year == int(year))
+    if sem:
+        q = q.filter(CoursePost.semester == sem)
+    posts = q.order_by(CoursePost.year.desc().nulls_last(), CoursePost.created_at.desc()).all()
+
+    # 작성자 정보 (익명 제외)
     author_ids = {p.author_id for p in posts if not p.is_anonymous and p.author_id}
     authors = {}
     if author_ids:
@@ -7091,6 +7104,10 @@ async def course_detail(
                posts=posts,
                authors=authors,
                tab=tab,
+               year_filter=year,
+               sem_filter=sem,
+               avail_years=avail_years,
+               avail_sems=avail_sems,
                review_count=review_count,
                exam_count=exam_count,
                creator=creator,
