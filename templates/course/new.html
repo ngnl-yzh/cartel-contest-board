@@ -35,10 +35,19 @@
           </select>
         </label>
         <label class="field">
-          <span>담당 교수</span>
-          <input type="text" name="professor" maxlength="50" placeholder="홍길동">
+          <span>개설 학기</span>
+          <select name="semester">
+            <option value="">선택 안 함</option>
+            <option value="1">1학기</option>
+            <option value="2">2학기</option>
+            <option value="여름">여름학기</option>
+            <option value="겨울">겨울학기</option>
+          </select>
         </label>
       </div>
+      <label class="field">
+        <span>담당 교수</span>
+        <input type="text" name="professor" maxlength="50" placeholder="홍길동 교수님"></label>
 
       <label class="field">
         <span>학과 <span class="muted">(선택)</span></span>

@@ -481,6 +481,7 @@ class CourseEntry(Base):
     id           = Column(Integer, primary_key=True, index=True)
     subject_name = Column(String(100), nullable=False, index=True)
     grade        = Column(Integer, nullable=True)    # 1~4학년; None=전학년
+    semester     = Column(String(5), default="")     # "1"/"2"/"여름"/"겨울"/"" 개설 학기
     professor    = Column(String(50), default="")
     department   = Column(String(100), default="")   # 학과 (선택)
     created_by   = Column(Integer, nullable=True)    # Member.id

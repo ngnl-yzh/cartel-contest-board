@@ -6956,28 +6956,28 @@ _SEMESTERS = [("1", "1학기"), ("2", "2학기"), ("여름", "여름학기"), ("
 @app.get("/course", response_class=HTMLResponse)
 async def course_list(
     request: Request,
-    q: str = "",
-    grade: str = "",
+    subject: str = "",   # 교과목명 검색
+    prof: str = "",      # 교수명 검색
+    grade: str = "",     # 학년 필터 (1~4)
+    semester: str = "",  # 학기 필터 (1/2/여름/겨울)
     db: Session = Depends(get_db),
 ):
+    from sqlalchemy import func
     query = db.query(CourseEntry)
-    if q:
-        query = query.filter(
-            or_(
-                CourseEntry.subject_name.ilike(f"%{q}%"),
-                CourseEntry.professor.ilike(f"%{q}%"),
-                CourseEntry.department.ilike(f"%{q}%"),
-            )
-        )
+    if subject:
+        query = query.filter(CourseEntry.subject_name.ilike(f"%{subject}%"))
+    if prof:
+        query = query.filter(CourseEntry.professor.ilike(f"%{prof}%"))
     if grade and grade.isdigit():
         query = query.filter(CourseEntry.grade == int(grade))
+    if semester:
+        query = query.filter(CourseEntry.semester == semester)
     entries = query.order_by(CourseEntry.subject_name).all()
 
-    # 각 교과목의 글 수 집계
+    # 글 수 집계
     ids = [e.id for e in entries]
     review_counts, exam_counts = {}, {}
     if ids:
-        from sqlalchemy import func
         rows = (
             db.query(CoursePost.course_id, CoursePost.post_type, func.count())
             .filter(CoursePost.course_id.in_(ids))
@@ -6990,12 +6990,24 @@ async def course_list(
             else:
                 exam_counts[cid] = cnt
 
+    # 학년별 그룹핑: {1: [...], 2: [...], 3: [...], 4: [...], None: [...]}
+    from collections import defaultdict
+    grouped: dict = defaultdict(list)
+    for e in entries:
+        grouped[e.grade].append(e)
+    # 정렬: 1~4학년 순서, 마지막에 전학년(None)
+    grade_order = [1, 2, 3, 4, None]
+    grouped_list = [(g, grouped[g]) for g in grade_order if grouped[g]]
+
     ctx = _ctx(request, db,
-               entries=entries,
+               grouped_list=grouped_list,
                review_counts=review_counts,
                exam_counts=exam_counts,
-               query=q,
-               grade_filter=grade)
+               subject=subject,
+               prof=prof,
+               grade_filter=grade,
+               semester_filter=semester,
+               semesters=_SEMESTERS)
     return _render(request, "course/list.html", ctx)
 
 
@@ -7012,6 +7024,7 @@ async def course_new_submit(
     request: Request,
     subject_name: str = Form(...),
     grade: str = Form(""),
+    semester: str = Form(""),
     professor: str = Form(""),
     department: str = Form(""),
     db: Session = Depends(get_db),
@@ -7023,9 +7036,11 @@ async def course_new_submit(
     if not subject_name:
         return _render(request, "course/new.html", _ctx(request, db, error="교과목명을 입력해주세요."))
     grade_int = int(grade) if grade and grade.isdigit() and 1 <= int(grade) <= 4 else None
+    valid_sems = {v for v, _ in _SEMESTERS}
     entry = CourseEntry(
         subject_name=subject_name,
         grade=grade_int,
+        semester=semester if semester in valid_sems else "",
         professor=professor.strip(),
         department=department.strip(),
         created_by=cm.id,

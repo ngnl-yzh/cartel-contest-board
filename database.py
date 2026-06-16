@@ -124,7 +124,9 @@ def init_db():
         if "posts" in tables:
             _add_col(conn, inspector, "posts", "is_pinned", "is_pinned BOOLEAN DEFAULT FALSE")
 
-        # calendar_events, push_subscriptions, site_banners — 신규 테이블이므로 create_all로 생성됨
+        # calendar_events, push_subscriptions, site_banners, course_entries, course_posts — 신규 테이블이므로 create_all로 생성됨
+        if "course_entries" in tables:
+            _add_col(conn, inspector, "course_entries", "semester", "semester VARCHAR(5) DEFAULT ''")
 
         if "chat_rooms" in tables and "chat_room_members" in tables:
             rooms = conn.execute(_t(
