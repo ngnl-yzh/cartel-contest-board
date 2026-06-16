@@ -53,7 +53,7 @@ from models import (
     Post, PostLike,
     CalendarEvent,
     GalleryPost, PersonalPost, PushSubscription, SiteBanner, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
-    CourseEntry, CoursePost,
+    CourseEntry, CoursePost, CourseFile,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -7099,10 +7099,23 @@ async def course_detail(
 
     creator = db.query(Member).filter(Member.id == entry.created_by).first() if entry.created_by else None
 
+    # 첨부 파일 (post_id → files 맵)
+    post_ids = [p.id for p in posts]
+    files_map: dict = {}
+    if post_ids:
+        cm_now = _current_member(request, db)
+        is_priv = _is_privileged(request, db)
+        all_cfiles = db.query(CourseFile).filter(CourseFile.course_post_id.in_(post_ids)).all()
+        for cf in all_cfiles:
+            visible = (cf.is_approved is True) or is_priv or (cm_now and cm_now.id == cf.uploaded_by)
+            if visible:
+                files_map.setdefault(cf.course_post_id, []).append(cf)
+
     ctx = _ctx(request, db,
                entry=entry,
                posts=posts,
                authors=authors,
+               files_map=files_map,
                tab=tab,
                year_filter=year,
                sem_filter=sem,
@@ -7132,6 +7145,10 @@ async def course_write_form(
                    _ctx(request, db, entry=entry, tab=tab, semesters=_SEMESTERS))
 
 
+_COURSE_FILE_EXTS = {"hwp", "hwpx", "html", "htm", "pdf", "zip"}
+_COURSE_FILE_MAX  = 50 * 1024 * 1024   # 50 MB
+
+
 @app.post("/course/{course_id}/write")
 async def course_write_submit(
     request: Request,
@@ -7141,6 +7158,7 @@ async def course_write_submit(
     year: str = Form(""),
     semester: str = Form(""),
     is_anonymous: str = Form(""),
+    files: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
     cm = _current_member(request, db)
@@ -7157,9 +7175,10 @@ async def course_write_submit(
                             semesters=_SEMESTERS, error="내용을 입력해주세요."))
 
     valid_semesters = {s for s, _ in _SEMESTERS}
+    ptype = "review" if post_type == "review" else "exam"
     cp = CoursePost(
         course_id=course_id,
-        post_type="review" if post_type == "review" else "exam",
+        post_type=ptype,
         content=content,
         year=int(year) if year and year.isdigit() else None,
         semester=semester if semester in valid_semesters else "",
@@ -7167,8 +7186,33 @@ async def course_write_submit(
         author_id=cm.id,
     )
     db.add(cp)
+    db.flush()   # cp.id 확보
+
+    # 파일 업로드 (시험정보만)
+    if ptype == "exam" and files:
+        for uf in files:
+            if not uf.filename:
+                continue
+            ext = Path(uf.filename).suffix.lstrip(".").lower()
+            if ext not in _COURSE_FILE_EXTS:
+                continue
+            raw = await uf.read()
+            if len(raw) > _COURSE_FILE_MAX:
+                continue
+            safe_name = f"cf_{uuid.uuid4().hex}{Path(uf.filename).suffix}"
+            _storage_upload(raw, safe_name, uf.content_type or "application/octet-stream")
+            db.add(CourseFile(
+                course_post_id=cp.id,
+                course_id=course_id,
+                filename=safe_name,
+                original_name=uf.filename,
+                file_size=len(raw),
+                uploaded_by=cm.id,
+                is_approved=None,
+            ))
+
     db.commit()
-    return RedirectResponse(url=f"/course/{course_id}?tab={cp.post_type}", status_code=303)
+    return RedirectResponse(url=f"/course/{course_id}?tab={ptype}", status_code=303)
 
 
 @app.post("/course/{course_id}/post/{post_id}/delete")
@@ -7190,9 +7234,33 @@ async def course_post_delete(
     if cp.author_id != cm.id and not is_priv:
         raise HTTPException(status_code=403)
     tab = cp.post_type
+    # 첨부 파일도 삭제
+    for cf in db.query(CourseFile).filter(CourseFile.course_post_id == post_id).all():
+        _storage_delete(cf.filename)
+        db.delete(cf)
     db.delete(cp)
     db.commit()
     return RedirectResponse(url=f"/course/{course_id}?tab={tab}", status_code=303)
+
+
+@app.get("/course/file/{file_id}/download")
+async def course_file_download(file_id: int, db: Session = Depends(get_db), request: Request = None):
+    cf = db.query(CourseFile).filter(CourseFile.id == file_id).first()
+    if not cf:
+        raise HTTPException(status_code=404)
+    if cf.is_approved is not True:
+        # 관리자 또는 업로더만 접근 가능
+        cm = _current_member(request, db)
+        if not cm:
+            raise HTTPException(status_code=403)
+        is_priv = _is_privileged(request, db)
+        if not is_priv and cm.id != cf.uploaded_by:
+            raise HTTPException(status_code=403, detail="관리자 승인 후 다운로드 가능합니다.")
+    path = UPLOAD_DIR / cf.filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    from fastapi.responses import FileResponse
+    return FileResponse(path, filename=cf.original_name, media_type="application/octet-stream")
 
 
 @app.post("/course/{course_id}/delete")
@@ -7206,7 +7274,62 @@ async def course_entry_delete(
     entry = db.query(CourseEntry).filter(CourseEntry.id == course_id).first()
     if not entry:
         raise HTTPException(status_code=404)
+    for cf in db.query(CourseFile).filter(CourseFile.course_id == course_id).all():
+        _storage_delete(cf.filename)
+        db.delete(cf)
     db.query(CoursePost).filter(CoursePost.course_id == course_id).delete()
     db.delete(entry)
     db.commit()
     return RedirectResponse(url="/course", status_code=303)
+
+
+# ── 관리자: 교과목 파일 승인 ────────────────────────────────────────────────
+
+@app.get("/admin/course-files", response_class=HTMLResponse)
+async def admin_course_files(request: Request, db: Session = Depends(get_db)):
+    if r := _admin_redirect(request):
+        return r
+    pending = db.query(CourseFile).filter(CourseFile.is_approved.is_(None)).order_by(CourseFile.created_at).all()
+    approved = db.query(CourseFile).filter(CourseFile.is_approved.is_(True)).order_by(CourseFile.created_at.desc()).limit(50).all()
+    rejected = db.query(CourseFile).filter(CourseFile.is_approved.is_(False)).order_by(CourseFile.created_at.desc()).limit(30).all()
+
+    post_ids = {cf.course_post_id for cf in pending + approved + rejected}
+    posts_map = {p.id: p for p in db.query(CoursePost).filter(CoursePost.id.in_(post_ids)).all()} if post_ids else {}
+    course_ids = {cf.course_id for cf in pending + approved + rejected}
+    courses_map = {e.id: e for e in db.query(CourseEntry).filter(CourseEntry.id.in_(course_ids)).all()} if course_ids else {}
+    uploader_ids = {cf.uploaded_by for cf in pending + approved + rejected if cf.uploaded_by}
+    uploaders_map = {m.id: m for m in db.query(Member).filter(Member.id.in_(uploader_ids)).all()} if uploader_ids else {}
+
+    return _render(request, "admin/course_files.html", _ctx(request, db,
+        pending=pending, approved=approved, rejected=rejected,
+        posts_map=posts_map, courses_map=courses_map, uploaders_map=uploaders_map))
+
+
+@app.post("/admin/course-files/{file_id}/approve")
+async def admin_course_file_approve(request: Request, file_id: int, db: Session = Depends(get_db)):
+    if r := _admin_redirect(request):
+        return r
+    cf = db.query(CourseFile).filter(CourseFile.id == file_id).first()
+    if cf:
+        cm = _current_member(request, db)
+        cf.is_approved = True
+        cf.approved_by = cm.id if cm else None
+        cf.approved_at = _now()
+        db.commit()
+    return RedirectResponse(url="/admin/course-files", status_code=303)
+
+
+@app.post("/admin/course-files/{file_id}/reject")
+async def admin_course_file_reject(
+    request: Request, file_id: int,
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    if r := _admin_redirect(request):
+        return r
+    cf = db.query(CourseFile).filter(CourseFile.id == file_id).first()
+    if cf:
+        cf.is_approved = False
+        cf.reject_reason = reason.strip()
+        db.commit()
+    return RedirectResponse(url="/admin/course-files", status_code=303)

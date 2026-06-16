@@ -137,6 +137,36 @@
           {# 본문 (기본 숨김) #}
           <div class="cd-card-body" id="body-{{ p.id }}" style="display:none">
             <div class="cd-content markdown-body">{{ p.content | markdown | safe }}</div>
+
+            {# 첨부 파일 #}
+            {% set pfiles = files_map.get(p.id, []) %}
+            {% if pfiles %}
+            <div class="cd-file-list">
+              {% for cf in pfiles %}
+              <a href="/course/file/{{ cf.id }}/download" class="cd-file-item
+                {% if cf.is_approved is none %}cd-file--pending
+                {% elif cf.is_approved == false %}cd-file--rejected
+                {% endif %}" download>
+                <span class="cd-file-icon">
+                  {% set ext = cf.original_name.rsplit('.', 1)[-1].lower() %}
+                  {% if ext == 'pdf' %}📕
+                  {% elif ext in ['hwp','hwpx'] %}📘
+                  {% elif ext == 'zip' %}🗜
+                  {% else %}📄{% endif %}
+                </span>
+                <span class="cd-file-name">{{ cf.original_name }}</span>
+                <span class="cd-file-size">{{ (cf.file_size / 1024)|round(1) }} KB</span>
+                {% if cf.is_approved is none %}
+                  <span class="cd-file-badge cd-badge--pending">검토 중</span>
+                {% elif cf.is_approved == false %}
+                  <span class="cd-file-badge cd-badge--rejected">반려</span>
+                {% else %}
+                  <span class="cd-file-badge cd-badge--approved">승인됨</span>
+                {% endif %}
+              </a>
+              {% endfor %}
+            </div>
+            {% endif %}
           </div>
 
         </div>
@@ -265,6 +295,35 @@
 @media (max-width:600px) {
   .cd-preview { max-width:100px; }
 }
+
+/* ── 첨부 파일 ── */
+.cd-file-list {
+  display: flex; flex-direction: column; gap: .35rem;
+  margin-top: .85rem; padding-top: .75rem;
+  border-top: 1px solid var(--line);
+}
+.cd-file-item {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .75rem;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  text-decoration: none; color: inherit;
+  font-size: .84rem;
+  transition: border-color .15s, background .15s;
+}
+.cd-file-item:hover { border-color: var(--primary); background: rgba(37,99,235,.03); }
+.cd-file--pending { opacity: .7; cursor: default; pointer-events: none; }
+.cd-file--rejected { opacity: .5; cursor: default; pointer-events: none; }
+.cd-file-icon { font-size: 1.1rem; flex-shrink: 0; }
+.cd-file-name { flex: 1; font-weight: 600; word-break: break-all; }
+.cd-file-size { font-size: .74rem; color: var(--muted); flex-shrink: 0; }
+.cd-file-badge {
+  font-size: .68rem; font-weight: 700;
+  border-radius: 20px; padding: 1px 8px; flex-shrink: 0;
+}
+.cd-badge--pending  { background: #fef3c7; color: #92400e; }
+.cd-badge--rejected { background: #fee2e2; color: #991b1b; }
+.cd-badge--approved { background: #d1fae5; color: #065f46; }
 </style>
 
 <script>

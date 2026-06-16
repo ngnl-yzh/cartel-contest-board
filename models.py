@@ -503,6 +503,25 @@ class CoursePost(Base):
     created_at   = Column(DateTime, default=_kst_now)
 
 
+class CourseFile(Base):
+    """시험정보 첨부 파일 (관리자 승인 후 공개)"""
+    __tablename__ = "course_files"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    course_post_id = Column(Integer, nullable=False, index=True)  # CoursePost.id
+    course_id     = Column(Integer, nullable=False, index=True)   # CourseEntry.id
+    filename      = Column(String(500), nullable=False)           # 저장 파일명
+    original_name = Column(String(500), nullable=False)           # 원본 파일명
+    file_size     = Column(Integer, default=0)                    # bytes
+    uploaded_by   = Column(Integer, nullable=True)                # Member.id
+    # None=검토 중, True=승인, False=반려
+    is_approved   = Column(Boolean, nullable=True, default=None)
+    approved_by   = Column(Integer, nullable=True)
+    approved_at   = Column(DateTime, nullable=True)
+    reject_reason = Column(String(300), default="")
+    created_at    = Column(DateTime, default=_kst_now)
+
+
 class PersonalPost(Base):
     """팀원 개인 갤러리 게시물 (인스타그램 스타일)"""
     __tablename__ = "personal_posts"
