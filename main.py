@@ -7244,12 +7244,11 @@ async def course_post_delete(
 
 
 @app.get("/course/file/{file_id}/download")
-async def course_file_download(file_id: int, db: Session = Depends(get_db), request: Request = None):
+async def course_file_download(request: Request, file_id: int, db: Session = Depends(get_db)):
     cf = db.query(CourseFile).filter(CourseFile.id == file_id).first()
     if not cf:
         raise HTTPException(status_code=404)
     if cf.is_approved is not True:
-        # 관리자 또는 업로더만 접근 가능
         cm = _current_member(request, db)
         if not cm:
             raise HTTPException(status_code=403)
