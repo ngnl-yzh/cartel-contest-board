@@ -135,12 +135,14 @@ async def _crawl_jnu_board(
             href = title_tag["href"]
             link = _abs_url(href, base)
 
-            # 날짜: 마지막 컬럼들에서 날짜 패턴 찾기
+            # 날짜: 마지막 컬럼들에서 날짜 패턴만 추출
             posted_date = ""
+            _d_re = re.compile(r"(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})")
             for col in reversed(cols):
                 txt = col.get_text(strip=True)
-                if re.search(r"\d{4}[.\-]\d{1,2}[.\-]\d{1,2}", txt):
-                    posted_date = txt
+                m = _d_re.search(txt)
+                if m:
+                    posted_date = m.group(1)
                     break
 
             # 올해 게시물만 수집
@@ -311,6 +313,8 @@ async def _crawl_aicoss(client: httpx.AsyncClient) -> list:
             if rows:
                 break
 
+        _DATE_RE = re.compile(r"(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})")
+
         seen: set = set()
         for row in rows[:30]:
             a = row.find("a", href=True)
@@ -320,17 +324,27 @@ async def _crawl_aicoss(client: httpx.AsyncClient) -> list:
             if not title or len(title) < 3:
                 continue
             href  = a.get("href", "")
-            link  = _abs_url(href, "https://www.aicoss.kr")
+
+            # javascript: 링크는 쓸모없음 — 상세 페이지 URL을 직접 구성
+            if href.startswith("javascript"):
+                m = re.search(r"\d+", href)
+                if m:
+                    href = f"https://www.aicoss.kr/www/notice/view/{m.group()}"
+                else:
+                    href = "https://www.aicoss.kr/www/notice/"
+            link = _abs_url(href, "https://www.aicoss.kr")
+
             if link in seen:
                 continue
             seen.add(link)
 
-            # 날짜
+            # 날짜: 날짜 패턴만 추출 (전체 텍스트가 아닌 첫 번째 매치만)
             posted_date = ""
             for col in row.find_all(["td", "span", "div"]):
                 txt = col.get_text(strip=True)
-                if re.search(r"\d{4}[.\-]\d{1,2}[.\-]\d{1,2}", txt):
-                    posted_date = txt
+                m = _DATE_RE.search(txt)
+                if m:
+                    posted_date = m.group(1)
                     break
 
             if not _is_this_year(posted_date):

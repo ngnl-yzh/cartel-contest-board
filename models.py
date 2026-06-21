@@ -561,8 +561,8 @@ class CnuItem(Base):
     source_label = Column(String(100), default="")
     title        = Column(String(500), nullable=False)
     link         = Column(String(1000), nullable=False)
-    posted_date  = Column(String(20), default="")   # 게시일 (YYYY-MM-DD or raw string)
-    deadline     = Column(String(20), nullable=True) # 마감일 YYYY-MM-DD
+    posted_date  = Column(String(30), default="")   # 게시일 (YYYY-MM-DD)
+    deadline     = Column(String(30), nullable=True) # 마감일 YYYY-MM-DD
     summary      = Column(Text, default="")          # GPT 요약 (불릿)
     is_expired   = Column(Boolean, default=False)    # 마감 지난 항목
     created_at   = Column(DateTime, default=_kst_now)

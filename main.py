@@ -7653,8 +7653,8 @@ async def admin_cnu_crawl(
             source_label = it["source_label"],
             title        = it["title"][:500],
             link         = it["link"][:1000],
-            posted_date  = it.get("posted_date", ""),
-            deadline     = it.get("deadline"),
+            posted_date  = it.get("posted_date", "")[:30],
+            deadline     = (it.get("deadline") or "")[:30] or None,
             summary      = "",
         ))
         added += 1

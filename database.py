@@ -165,6 +165,14 @@ def init_db():
                 "UPDATE team_members SET team_id = :tid WHERE competition_id = :cid AND team_id IS NULL"
             ), {"tid": tid, "cid": cid})
 
+        # cnu_items: posted_date/deadline 컬럼 크기 확장 (VARCHAR(20) → VARCHAR(30))
+        if "cnu_items" in tables:
+            try:
+                conn.execute(_t("ALTER TABLE cnu_items ALTER COLUMN posted_date TYPE VARCHAR(30)"))
+                conn.execute(_t("ALTER TABLE cnu_items ALTER COLUMN deadline TYPE VARCHAR(30)"))
+            except Exception:
+                pass  # 이미 크거나 지원 안 하는 DB
+
         conn.commit()
 
 
