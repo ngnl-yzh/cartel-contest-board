@@ -71,39 +71,61 @@
       <span style="margin-left:auto;font-size:.68rem;background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:20px;font-weight:700">미요약 {{ unsummarized }}</span>
       {% endif %}
     </button>
-    <div class="cnu-section-body" style="display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem;overflow:hidden">
-      {% for item in type_items %}
-      <div style="border:1.5px solid var(--line);border-radius:10px;padding:.65rem .9rem;background:var(--surface)">
-        <div style="display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.25rem">
-              <span style="font-size:.7rem;font-weight:700;background:rgba(37,99,235,.1);color:var(--primary);padding:1px 7px;border-radius:20px">{{ item.source_label }}</span>
-              {% if item.posted_date %}<span class="muted" style="font-size:.7rem">{{ item.posted_date }}</span>{% endif %}
-              {% if item.deadline %}<span style="font-size:.7rem;color:#b45309;background:#fef3c7;padding:1px 7px;border-radius:20px;font-weight:700">~{{ item.deadline }}</span>{% endif %}
-              {% if not item.summary %}<span style="font-size:.68rem;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:20px">미요약</span>{% endif %}
+    {# 소스 필터 칩 — 이 섹션에 존재하는 소스만 추출 #}
+    {% set sources_in_section = [] %}
+    {% for item in type_items %}
+      {% if item.source_label not in sources_in_section %}
+        {% set _ = sources_in_section.append(item.source_label) %}
+      {% endif %}
+    {% endfor %}
+    <div class="cnu-section-body" style="overflow:hidden">
+      {% if sources_in_section | length > 1 %}
+      <div class="cnu-filter-bar" data-section="{{ btype }}"
+           style="display:flex;flex-wrap:wrap;gap:.35rem;padding:.5rem .1rem .35rem">
+        <button type="button" class="cnu-filter-chip active" data-source="all"
+                onclick="filterSource(this,'{{ btype }}','all')">전체</button>
+        {% for src_label in sources_in_section %}
+        <button type="button" class="cnu-filter-chip" data-source="{{ src_label }}"
+                onclick="filterSource(this,'{{ btype }}','{{ src_label }}')">{{ src_label }}</button>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="cnu-item-list" data-section="{{ btype }}"
+           style="display:flex;flex-direction:column;gap:.4rem;margin-top:.3rem">
+        {% for item in type_items %}
+        <div class="cnu-item" data-source="{{ item.source_label }}"
+             style="border:1.5px solid var(--line);border-radius:10px;padding:.65rem .9rem;background:var(--surface)">
+          <div style="display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.25rem">
+                <span style="font-size:.7rem;font-weight:700;background:rgba(37,99,235,.1);color:var(--primary);padding:1px 7px;border-radius:20px">{{ item.source_label }}</span>
+                {% if item.posted_date %}<span class="muted" style="font-size:.7rem">{{ item.posted_date }}</span>{% endif %}
+                {% if item.deadline %}<span style="font-size:.7rem;color:#b45309;background:#fef3c7;padding:1px 7px;border-radius:20px;font-weight:700">~{{ item.deadline }}</span>{% endif %}
+                {% if not item.summary %}<span style="font-size:.68rem;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:20px">미요약</span>{% endif %}
+              </div>
+              <a href="{{ item.link }}" target="_blank" rel="noopener"
+                 style="font-size:.88rem;font-weight:700;text-decoration:none;color:var(--text-1)">
+                {{ item.title }}
+              </a>
+              {% if item.summary %}
+              <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;padding:.35rem .5rem;background:rgba(0,0,0,.03);border-radius:5px;border-left:3px solid var(--primary)">
+                {{ item.summary | replace('\n', '<br>') | safe }}
+              </div>
+              {% endif %}
             </div>
-            <a href="{{ item.link }}" target="_blank" rel="noopener"
-               style="font-size:.88rem;font-weight:700;text-decoration:none;color:var(--text-1)">
-              {{ item.title }}
-            </a>
-            {% if item.summary %}
-            <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;padding:.35rem .5rem;background:rgba(0,0,0,.03);border-radius:5px;border-left:3px solid var(--primary)">
-              {{ item.summary | replace('\n', '<br>') | safe }}
+            <div style="display:flex;gap:.35rem;flex-shrink:0;align-items:flex-start">
+              <form method="post" action="/admin/cnu/{{ item.id }}/summarize" style="display:inline">
+                <button type="submit" class="btn btn-ghost btn-xs" title="GPT 요약">🤖</button>
+              </form>
+              <form method="post" action="/admin/cnu/{{ item.id }}/delete"
+                    onsubmit="return confirm('삭제하시겠습니까?')" style="display:inline">
+                <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
+              </form>
             </div>
-            {% endif %}
-          </div>
-          <div style="display:flex;gap:.35rem;flex-shrink:0;align-items:flex-start">
-            <form method="post" action="/admin/cnu/{{ item.id }}/summarize" style="display:inline">
-              <button type="submit" class="btn btn-ghost btn-xs" title="GPT 요약">🤖</button>
-            </form>
-            <form method="post" action="/admin/cnu/{{ item.id }}/delete"
-                  onsubmit="return confirm('삭제하시겠습니까?')" style="display:inline">
-              <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
-            </form>
           </div>
         </div>
+        {% endfor %}
       </div>
-      {% endfor %}
     </div>
   </section>
   {% endif %}
@@ -155,6 +177,23 @@
 <style>
 @keyframes gpt-spin  { to { transform: rotate(360deg); } }
 @keyframes bar-shine { 0%,100% { transform:translateX(-100%); } 50% { transform:translateX(100%); } }
+
+.cnu-filter-chip {
+  padding: 3px 10px;
+  font-size: .73rem; font-weight: 600;
+  border: 1.5px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.cnu-filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+.cnu-filter-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
 </style>
 
 <script>
@@ -242,6 +281,19 @@ if (summarizeAllForm) {
 const crawlForm = document.querySelector('form[action="/admin/cnu/crawl"]');
 if (crawlForm) {
   crawlForm.addEventListener('submit', () => showSimple('🔍 크롤링 중...', '각 사이트에서 데이터를 가져오고 있습니다'));
+}
+
+// ── 소스 필터
+function filterSource(chip, section, source) {
+  // 칩 active 전환
+  chip.closest('.cnu-filter-bar').querySelectorAll('.cnu-filter-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+
+  // 항목 show/hide
+  document.querySelector(`.cnu-item-list[data-section="${section}"]`)
+    .querySelectorAll('.cnu-item').forEach(el => {
+      el.style.display = (source === 'all' || el.dataset.source === source) ? '' : 'none';
+    });
 }
 
 // ── 섹션 접기/펼치기
