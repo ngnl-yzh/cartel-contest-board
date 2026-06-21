@@ -58,12 +58,20 @@
   {% for btype, blabel in board_labels.items() %}
   {% set type_items = items | selectattr('board_type', 'equalto', btype) | list %}
   {% if type_items %}
-  <section style="margin-bottom:2.5rem">
-    <h2 style="font-size:.92rem;font-weight:700;margin:0 0 .65rem;display:flex;align-items:center;gap:.4rem">
+  <section class="cnu-section" style="margin-bottom:1.5rem">
+    <button type="button" class="cnu-section-toggle" onclick="toggleSection(this)"
+            style="width:100%;display:flex;align-items:center;gap:.5rem;padding:.5rem .65rem;
+                   background:rgba(0,0,0,.03);border:1.5px solid var(--line);border-radius:10px;
+                   cursor:pointer;text-align:left;font-size:.92rem;font-weight:700;color:var(--text-1)">
+      <span class="cnu-chevron" style="font-size:.75rem;transition:transform .2s;display:inline-block">▼</span>
       {{ blabel }}
-      <span style="font-size:.75rem;font-weight:400;color:var(--muted)">({{ type_items|length }}건)</span>
-    </h2>
-    <div style="display:flex;flex-direction:column;gap:.4rem">
+      <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:.1rem">({{ type_items|length }}건)</span>
+      {% set unsummarized = type_items | rejectattr('summary') | list | length %}
+      {% if unsummarized > 0 %}
+      <span style="margin-left:auto;font-size:.68rem;background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:20px;font-weight:700">미요약 {{ unsummarized }}</span>
+      {% endif %}
+    </button>
+    <div class="cnu-section-body" style="display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem;overflow:hidden">
       {% for item in type_items %}
       <div style="border:1.5px solid var(--line);border-radius:10px;padding:.65rem .9rem;background:var(--surface)">
         <div style="display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
@@ -234,6 +242,45 @@ if (summarizeAllForm) {
 const crawlForm = document.querySelector('form[action="/admin/cnu/crawl"]');
 if (crawlForm) {
   crawlForm.addEventListener('submit', () => showSimple('🔍 크롤링 중...', '각 사이트에서 데이터를 가져오고 있습니다'));
+}
+
+// ── 섹션 접기/펼치기
+function toggleSection(btn) {
+  const body    = btn.nextElementSibling;
+  const chevron = btn.querySelector('.cnu-chevron');
+  const open    = body.style.display !== 'none';
+  if (open) {
+    // 닫기: 현재 높이를 명시한 뒤 0으로 transition
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.style.overflow  = 'hidden';
+    body.style.transition = 'max-height .25s ease, opacity .2s ease';
+    body.style.opacity   = '1';
+    requestAnimationFrame(() => {
+      body.style.maxHeight = '0';
+      body.style.opacity   = '0';
+    });
+    body.addEventListener('transitionend', () => {
+      if (body.style.maxHeight === '0px') body.style.display = 'none';
+    }, { once: true });
+    chevron.style.transform = 'rotate(-90deg)';
+    btn.style.borderRadius  = '10px';
+  } else {
+    // 열기
+    body.style.display   = 'flex';
+    body.style.maxHeight = '0';
+    body.style.opacity   = '0';
+    body.style.transition = 'max-height .28s ease, opacity .2s ease';
+    requestAnimationFrame(() => {
+      body.style.maxHeight = body.scrollHeight + 'px';
+      body.style.opacity   = '1';
+    });
+    body.addEventListener('transitionend', () => {
+      body.style.maxHeight = 'none';
+      body.style.overflow  = 'visible';
+    }, { once: true });
+    chevron.style.transform = 'rotate(0deg)';
+    btn.style.borderRadius  = '10px 10px 0 0';
+  }
 }
 
 // ── 만료 정리
