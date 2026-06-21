@@ -25,7 +25,7 @@ from typing import List, Optional
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -7574,6 +7574,31 @@ async def admin_course_file_reject(
 #  CNU 보드 — 공개 & 관리자
 # ════════════════════════════════════════════════════════════════════════════
 
+# 백그라운드 GPT 요약 진행 상황 (메모리, 서버 재시작 시 초기화)
+_cnu_jobs: dict = {}   # job_id -> {total, done, status, errors}
+
+
+async def _bg_summarize_all(job_id: str, item_ids: list):
+    """백그라운드에서 CNU 항목 전체 요약 — _cnu_jobs에 진행률 업데이트"""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        for i, iid in enumerate(item_ids):
+            try:
+                item = db.query(CnuItem).filter(CnuItem.id == iid).first()
+                if item:
+                    item.summary = await _cnu_summarize(item.title, item.link)
+                    db.commit()
+            except Exception:
+                _cnu_jobs[job_id]["errors"] += 1
+            _cnu_jobs[job_id]["done"] = i + 1
+        _cnu_jobs[job_id]["status"] = "done"
+    except Exception as e:
+        _cnu_jobs[job_id]["status"] = "error"
+        _cnu_jobs[job_id]["msg"] = str(e)
+    finally:
+        db.close()
+
 # ── 공개 보드 ────────────────────────────────────────────────────────────────
 
 @app.get("/cnu", response_class=HTMLResponse)
@@ -7685,18 +7710,32 @@ async def admin_cnu_summarize(
 @app.post("/admin/cnu/summarize-all")
 async def admin_cnu_summarize_all(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """요약 없는 항목 전부 GPT 요약"""
+    """요약 없는 항목 전부 GPT 요약 — 백그라운드로 실행, job_id 반환"""
     if r := _admin_redirect(request):
         return r
     pending = db.query(CnuItem).filter(
         (CnuItem.summary == None) | (CnuItem.summary == "")
     ).all()
-    for item in pending:
-        item.summary = await _cnu_summarize(item.title, item.link)
-    db.commit()
-    return RedirectResponse(url=f"/admin/cnu?msg=전체 요약 완료 ({len(pending)}건)", status_code=303)
+    if not pending:
+        return JSONResponse({"job_id": None, "total": 0, "msg": "요약할 항목이 없습니다"})
+    job_id = uuid.uuid4().hex[:10]
+    _cnu_jobs[job_id] = {"total": len(pending), "done": 0, "status": "running", "errors": 0}
+    background_tasks.add_task(_bg_summarize_all, job_id, [it.id for it in pending])
+    return JSONResponse({"job_id": job_id, "total": len(pending)})
+
+
+@app.get("/admin/cnu/job/{job_id}")
+async def admin_cnu_job_status(request: Request, job_id: str):
+    """백그라운드 요약 진행 상황 폴링 엔드포인트"""
+    if r := _admin_redirect(request):
+        return r
+    job = _cnu_jobs.get(job_id)
+    if not job:
+        return JSONResponse({"status": "not_found"})
+    return JSONResponse(job)
 
 
 @app.post("/admin/cnu/{item_id}/delete")
