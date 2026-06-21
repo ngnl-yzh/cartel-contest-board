@@ -39,6 +39,7 @@ load_dotenv(BASE_DIR / ".env")
 
 from ai_parser import parse_document_file, parse_image_file, parse_text
 from crawler import CRAWL_SOURCES, JOB_SOURCES, crawl_all as _do_crawl_all, run_job_crawlers as _do_crawl_jobs
+from cnu_crawler import CNU_SOURCES, crawl_cnu_all as _do_crawl_cnu, cnu_gpt_summarize as _cnu_summarize
 from auth import create_token, verify_token
 from database import SessionLocal, get_db, init_db
 from member_auth import create_member_token, hash_password, verify_member_token, verify_password, verify_team_password
@@ -55,6 +56,7 @@ from models import (
     GalleryPost, PersonalPost, PushSubscription, SiteBanner, Team, TeamCompetitionEntry, TeamKickRequest, TeamMember, TeamResult,
     CourseEntry, CoursePost, CourseFile,
     TimetableEntry,
+    CnuItem,
 )
 
 app = FastAPI(title="공모전 보드")
@@ -7566,3 +7568,165 @@ async def admin_course_file_reject(
         cf.reject_reason = reason.strip()
         db.commit()
     return RedirectResponse(url="/admin/course-files", status_code=303)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  CNU 보드 — 공개 & 관리자
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── 공개 보드 ────────────────────────────────────────────────────────────────
+
+@app.get("/cnu", response_class=HTMLResponse)
+async def cnu_board(
+    request: Request,
+    tab: str = "scholarship",
+    db: Session = Depends(get_db),
+):
+    from datetime import date as _date
+    today_str = _date.today().isoformat()
+    valid_tabs = ("scholarship", "job_contest", "program")
+    if tab not in valid_tabs:
+        tab = "scholarship"
+    items = (
+        db.query(CnuItem)
+        .filter(CnuItem.board_type == tab)
+        .filter(
+            (CnuItem.deadline == None) | (CnuItem.deadline >= today_str)
+        )
+        .order_by(CnuItem.created_at.desc())
+        .all()
+    )
+    counts = {
+        bt: db.query(CnuItem).filter(
+            CnuItem.board_type == bt,
+            (CnuItem.deadline == None) | (CnuItem.deadline >= today_str),
+        ).count()
+        for bt in valid_tabs
+    }
+    return _render(request, "cnu/board.html",
+                   _ctx(request, db, tab=tab, items=items, counts=counts, today=today_str))
+
+
+# ── 관리자: CNU 크롤 ─────────────────────────────────────────────────────────
+
+@app.get("/admin/cnu", response_class=HTMLResponse)
+async def admin_cnu_page(request: Request, db: Session = Depends(get_db)):
+    if r := _admin_redirect(request):
+        return r
+    from datetime import date as _date
+    today_str = _date.today().isoformat()
+    all_items = (
+        db.query(CnuItem)
+        .order_by(CnuItem.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return _render(request, "admin/cnu.html",
+                   _ctx(request, db, items=all_items, cnu_sources=CNU_SOURCES,
+                        today=today_str))
+
+
+@app.post("/admin/cnu/crawl")
+async def admin_cnu_crawl(
+    request: Request,
+    sources: List[str] = Form(default=[]),
+    db: Session = Depends(get_db),
+):
+    if r := _admin_redirect(request):
+        return r
+
+    selected = [s for s in sources if s in CNU_SOURCES] or list(CNU_SOURCES.keys())
+    result = await _do_crawl_cnu(sources=selected)
+
+    items  = result.get("items", [])
+    errors = result.get("errors", [])
+    added  = 0
+
+    for it in items:
+        # 중복 체크 (URL 기준)
+        exists = db.query(CnuItem).filter(CnuItem.link == it["link"]).first()
+        if exists:
+            continue
+        db.add(CnuItem(
+            board_type   = it["board_type"],
+            source       = it["source"],
+            source_label = it["source_label"],
+            title        = it["title"][:500],
+            link         = it["link"][:1000],
+            posted_date  = it.get("posted_date", ""),
+            deadline     = it.get("deadline"),
+            summary      = "",
+        ))
+        added += 1
+
+    db.commit()
+    msg = f"크롤 완료 — 신규 {added}건 추가"
+    if errors:
+        msg += f" / 오류 {len(errors)}건"
+    return RedirectResponse(url=f"/admin/cnu?msg={msg}", status_code=303)
+
+
+@app.post("/admin/cnu/{item_id}/summarize")
+async def admin_cnu_summarize(
+    request: Request,
+    item_id: int,
+    db: Session = Depends(get_db),
+):
+    """GPT로 항목 요약 생성"""
+    if r := _admin_redirect(request):
+        return r
+    item = db.query(CnuItem).filter(CnuItem.id == item_id).first()
+    if item:
+        item.summary = await _cnu_summarize(item.title, item.link)
+        db.commit()
+    return RedirectResponse(url="/admin/cnu", status_code=303)
+
+
+@app.post("/admin/cnu/summarize-all")
+async def admin_cnu_summarize_all(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """요약 없는 항목 전부 GPT 요약"""
+    if r := _admin_redirect(request):
+        return r
+    pending = db.query(CnuItem).filter(
+        (CnuItem.summary == None) | (CnuItem.summary == "")
+    ).all()
+    for item in pending:
+        item.summary = await _cnu_summarize(item.title, item.link)
+    db.commit()
+    return RedirectResponse(url=f"/admin/cnu?msg=전체 요약 완료 ({len(pending)}건)", status_code=303)
+
+
+@app.post("/admin/cnu/{item_id}/delete")
+async def admin_cnu_delete(
+    request: Request,
+    item_id: int,
+    db: Session = Depends(get_db),
+):
+    if r := _admin_redirect(request):
+        return r
+    item = db.query(CnuItem).filter(CnuItem.id == item_id).first()
+    if item:
+        db.delete(item)
+        db.commit()
+    return RedirectResponse(url="/admin/cnu", status_code=303)
+
+
+@app.post("/admin/cnu/purge-expired")
+async def admin_cnu_purge_expired(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """마감 지난 항목 일괄 삭제"""
+    if r := _admin_redirect(request):
+        return r
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    deleted = db.query(CnuItem).filter(
+        CnuItem.deadline != None,
+        CnuItem.deadline < today,
+    ).delete()
+    db.commit()
+    return RedirectResponse(url=f"/admin/cnu?msg=만료 항목 {deleted}건 삭제", status_code=303)

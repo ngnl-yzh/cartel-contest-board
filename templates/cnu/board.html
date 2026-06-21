@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}CNU 보드 · 전남대학교{% endblock %}
+
+{% block content %}
+<main class="container" style="max-width:880px;padding-top:24px;padding-bottom:80px">
+
+  <div style="margin-bottom:1.25rem">
+    <p class="eyebrow" style="font-size:.78rem;color:var(--muted);margin:0 0 4px">전남대학교</p>
+    <h1 style="font-size:1.5rem;font-weight:800;margin:0">CNU 보드</h1>
+  </div>
+
+  {# ── 탭 ── #}
+  <div style="display:flex;border-bottom:2px solid var(--line);margin-bottom:1.25rem">
+    {% set tabs = [
+      ('scholarship', '🎓 장학공지',    counts.scholarship),
+      ('job_contest', '💼 공모전·취업', counts.job_contest),
+      ('program',     '📚 참여프로그램', counts.program),
+    ] %}
+    {% for t_key, t_label, t_count in tabs %}
+    <a href="/cnu?tab={{ t_key }}"
+       style="display:inline-flex;align-items:center;gap:.35rem;padding:.55rem 1rem;font-size:.88rem;font-weight:600;text-decoration:none;border-bottom:2.5px solid {{ 'var(--primary)' if tab == t_key else 'transparent' }};color:{{ 'var(--primary)' if tab == t_key else 'var(--muted)' }};margin-bottom:-2px;transition:color .15s,border-color .15s">
+      {{ t_label }}
+      <span style="font-size:.72rem;font-weight:700;background:{{ 'var(--primary)' if tab == t_key else 'rgba(0,0,0,.07)' }};color:{{ '#fff' if tab == t_key else 'inherit' }};padding:1px 7px;border-radius:10px">{{ t_count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {# ── 항목 목록 ── #}
+  {% if items %}
+  <div style="display:flex;flex-direction:column;gap:.5rem">
+    {% for item in items %}
+    <div class="cnu-card">
+      <div class="cnu-card-top">
+        <span class="cnu-source-badge">{{ item.source_label }}</span>
+        {% if item.deadline %}
+        <span class="cnu-deadline {% if item.deadline < today %}cnu-expired{% endif %}">
+          ⏰ ~{{ item.deadline }}
+        </span>
+        {% endif %}
+        {% if item.posted_date %}
+        <span class="cnu-date">{{ item.posted_date }}</span>
+        {% endif %}
+      </div>
+
+      <a href="{{ item.link }}" target="_blank" rel="noopener" class="cnu-title">
+        {{ item.title }}
+      </a>
+
+      {% if item.summary %}
+      <div class="cnu-summary markdown-body">{{ item.summary | markdown | safe }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding:3rem 0">
+    <p class="empty-text">등록된 항목이 없습니다.</p>
+    <p class="muted" style="font-size:.83rem">관리자가 크롤링을 실행하면 자동으로 채워집니다.</p>
+  </div>
+  {% endif %}
+
+</main>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.cnu-card {
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: .875rem 1rem;
+  background: var(--surface);
+  display: flex; flex-direction: column; gap: .45rem;
+  transition: border-color .15s;
+}
+.cnu-card:hover { border-color: var(--primary); }
+
+.cnu-card-top {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.cnu-source-badge {
+  font-size: .72rem; font-weight: 700;
+  background: rgba(37,99,235,.1); color: var(--primary);
+  padding: 1px 8px; border-radius: 20px;
+  flex-shrink: 0;
+}
+.cnu-deadline {
+  font-size: .72rem; font-weight: 700; color: #b45309;
+  background: #fef3c7; padding: 1px 8px; border-radius: 20px;
+}
+.cnu-expired { color:#991b1b; background:#fee2e2; }
+.cnu-date { font-size: .72rem; color: var(--muted); }
+
+.cnu-title {
+  font-size: .95rem; font-weight: 700;
+  text-decoration: none; color: var(--text-1);
+  line-height: 1.4;
+}
+.cnu-title:hover { color: var(--primary); text-decoration: underline; }
+
+.cnu-summary {
+  font-size: .82rem; color: var(--muted);
+  padding: .5rem .65rem;
+  background: rgba(0,0,0,.025);
+  border-radius: 6px;
+  border-left: 3px solid var(--primary);
+}
+.cnu-summary p { margin: .15rem 0; }
+.cnu-summary ul { margin: .2rem 0; padding-left: 1.2rem; }
+</style>
+{% endblock %}

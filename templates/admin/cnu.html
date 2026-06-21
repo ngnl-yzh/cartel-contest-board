@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}CNU 보드 관리{% endblock %}
+
+{% block content %}
+<main class="container" style="max-width:960px;padding-top:24px;padding-bottom:80px">
+
+  <div class="page-heading" style="margin-bottom:1.5rem">
+    <div>
+      <p class="eyebrow"><a href="/admin" style="color:inherit;text-decoration:none">관리자</a> › CNU 보드</p>
+      <h1 style="margin:0;font-size:1.4rem">🏫 전남대 CNU 보드 관리</h1>
+    </div>
+    <a href="/cnu" class="btn btn-outline btn-sm" target="_blank">공개 보드 ↗</a>
+  </div>
+
+  {% if request.query_params.get('msg') %}
+  <div class="alert alert-success" style="margin-bottom:1rem">{{ request.query_params.get('msg') }}</div>
+  {% endif %}
+
+  {# ── 크롤링 실행 ── #}
+  <section style="margin-bottom:2rem">
+    <h2 style="font-size:.9rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 .75rem">크롤링 실행</h2>
+    <form method="post" action="/admin/cnu/crawl">
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+        {% for key, (label, btype, _) in cnu_sources.items() %}
+        <label style="display:flex;align-items:center;gap:.4rem;padding:.4rem .75rem;border:1.5px solid var(--line);border-radius:8px;cursor:pointer;font-size:.82rem;background:var(--surface)">
+          <input type="checkbox" name="sources" value="{{ key }}" checked style="width:14px;height:14px">
+          <span style="font-weight:600">{{ label }}</span>
+          <span class="muted" style="font-size:.72rem">
+            {% if btype == 'scholarship' %}🎓{% elif btype == 'job_contest' %}💼{% else %}📚{% endif %}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button type="submit" class="btn btn-primary">▶ 크롤링 실행</button>
+        <a href="/admin/cnu/purge-expired" onclick="return confirm('마감 지난 항목을 모두 삭제하시겠습니까?')"
+           style="pointer-events:auto" class="btn btn-outline">🗑 만료 항목 정리</a>
+      </div>
+    </form>
+    <form method="post" action="/admin/cnu/purge-expired" style="display:none" id="purge-form"></form>
+  </section>
+
+  {# ── 전체 요약 ── #}
+  {% set no_summary = items | selectattr('summary', 'equalto', '') | list %}
+  {% if no_summary %}
+  <section style="margin-bottom:1.5rem">
+    <form method="post" action="/admin/cnu/summarize-all"
+          onsubmit="return confirm('요약 없는 {{ no_summary|length }}건을 GPT로 요약하시겠습니까? (시간이 걸릴 수 있습니다)')">
+      <button type="submit" class="btn btn-outline btn-sm">
+        🤖 GPT 전체 요약 (미요약 {{ no_summary|length }}건)
+      </button>
+    </form>
+  </section>
+  {% endif %}
+
+  {# ── 항목 목록 탭 ── #}
+  {% set board_labels = {'scholarship':'🎓 장학공지','job_contest':'💼 공모전·취업','program':'📚 참여프로그램'} %}
+  {% for btype, blabel in board_labels.items() %}
+  {% set type_items = items | selectattr('board_type', 'equalto', btype) | list %}
+  {% if type_items %}
+  <section style="margin-bottom:2.5rem">
+    <h2 style="font-size:.92rem;font-weight:700;margin:0 0 .65rem;display:flex;align-items:center;gap:.4rem">
+      {{ blabel }}
+      <span style="font-size:.75rem;font-weight:400;color:var(--muted)">({{ type_items|length }}건)</span>
+    </h2>
+    <div style="display:flex;flex-direction:column;gap:.4rem">
+      {% for item in type_items %}
+      <div style="border:1.5px solid var(--line);border-radius:10px;padding:.65rem .9rem;background:var(--surface)">
+        <div style="display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.25rem">
+              <span style="font-size:.7rem;font-weight:700;background:rgba(37,99,235,.1);color:var(--primary);padding:1px 7px;border-radius:20px">{{ item.source_label }}</span>
+              {% if item.posted_date %}<span class="muted" style="font-size:.7rem">{{ item.posted_date }}</span>{% endif %}
+              {% if item.deadline %}<span style="font-size:.7rem;color:#b45309;background:#fef3c7;padding:1px 7px;border-radius:20px;font-weight:700">~{{ item.deadline }}</span>{% endif %}
+              {% if not item.summary %}<span style="font-size:.68rem;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:20px">미요약</span>{% endif %}
+            </div>
+            <a href="{{ item.link }}" target="_blank" rel="noopener"
+               style="font-size:.88rem;font-weight:700;text-decoration:none;color:var(--text-1)">
+              {{ item.title }}
+            </a>
+            {% if item.summary %}
+            <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;padding:.35rem .5rem;background:rgba(0,0,0,.03);border-radius:5px;border-left:3px solid var(--primary)">
+              {{ item.summary | replace('\n', '<br>') | safe }}
+            </div>
+            {% endif %}
+          </div>
+          <div style="display:flex;gap:.35rem;flex-shrink:0;align-items:flex-start">
+            <form method="post" action="/admin/cnu/{{ item.id }}/summarize" style="display:inline">
+              <button type="submit" class="btn btn-ghost btn-xs" title="GPT 요약">🤖</button>
+            </form>
+            <form method="post" action="/admin/cnu/{{ item.id }}/delete"
+                  onsubmit="return confirm('삭제하시겠습니까?')" style="display:inline">
+              <button type="submit" class="btn btn-ghost btn-xs text-danger">삭제</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endfor %}
+
+  {% if not items %}
+  <div class="empty-state" style="padding:2.5rem 0">
+    <p class="empty-text">아직 크롤링된 항목이 없습니다.</p>
+    <p class="muted" style="font-size:.85rem">위에서 크롤링을 실행하면 자동으로 추가됩니다.</p>
+  </div>
+  {% endif %}
+
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 만료 정리 폼 제출을 POST로 처리
+document.querySelectorAll('a[href="/admin/cnu/purge-expired"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    if (confirm('마감 지난 항목을 모두 삭제하시겠습니까?')) {
+      document.getElementById('purge-form').submit();
+    }
+  });
+});
+</script>
+{% endblock %}

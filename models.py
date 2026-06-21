@@ -548,3 +548,21 @@ class TimetableEntry(Base):
     location     = Column(String(100), default="")
     color        = Column(String(10), default="teal")  # teal/blue/green/purple/orange/pink
     created_at   = Column(DateTime, default=_kst_now)
+
+
+class CnuItem(Base):
+    """전남대 CNU 보드 항목 (장학공지 / 공모전·취업 / 사업단 프로그램)"""
+    __tablename__ = "cnu_items"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    board_type   = Column(String(20), nullable=False, index=True)
+    # scholarship | job_contest | program
+    source       = Column(String(50), nullable=False)
+    source_label = Column(String(100), default="")
+    title        = Column(String(500), nullable=False)
+    link         = Column(String(1000), nullable=False)
+    posted_date  = Column(String(20), default="")   # 게시일 (YYYY-MM-DD or raw string)
+    deadline     = Column(String(20), nullable=True) # 마감일 YYYY-MM-DD
+    summary      = Column(Text, default="")          # GPT 요약 (불릿)
+    is_expired   = Column(Boolean, default=False)    # 마감 지난 항목
+    created_at   = Column(DateTime, default=_kst_now)

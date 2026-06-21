@@ -72,6 +72,7 @@
             </a>
           </div>
         </div>
+        <a href="/cnu" class="c-nav-link {% if request.url.path.startswith('/cnu') %}is-active{% endif %}">CNU 보드</a>
         <a href="/course" class="c-nav-link {% if request.url.path.startswith('/course') %}is-active{% endif %}">Course</a>
 
         <a href="/chat" class="c-nav-link {% if '/chat' in request.url.path %}is-active{% endif %}">Chat</a>
