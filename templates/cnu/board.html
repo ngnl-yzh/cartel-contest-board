@@ -25,33 +25,58 @@
     {% endfor %}
   </div>
 
-  {# ── 항목 목록 ── #}
+  {# ── 소스별 그룹 접기/펼치기 ── #}
   {% if items %}
-  <div style="display:flex;flex-direction:column;gap:.5rem">
+    {# 이 탭에 존재하는 소스 목록 추출 (순서 유지) #}
+    {% set sources_seen = [] %}
     {% for item in items %}
-    <div class="cnu-card">
-      <div class="cnu-card-top">
-        <span class="cnu-source-badge">{{ item.source_label }}</span>
-        {% if item.deadline %}
-        <span class="cnu-deadline {% if item.deadline < today %}cnu-expired{% endif %}">
-          ⏰ ~{{ item.deadline }}
-        </span>
-        {% endif %}
-        {% if item.posted_date %}
-        <span class="cnu-date">{{ item.posted_date }}</span>
-        {% endif %}
-      </div>
-
-      <a href="{{ item.link }}" target="_blank" rel="noopener" class="cnu-title">
-        {{ item.title }}
-      </a>
-
-      {% if item.summary %}
-      <div class="cnu-summary markdown-body">{{ item.summary | markdown | safe }}</div>
+      {% if item.source_label not in sources_seen %}
+        {% set _ = sources_seen.append(item.source_label) %}
       {% endif %}
-    </div>
     {% endfor %}
-  </div>
+
+    {% for src_label in sources_seen %}
+      {% set src_items = items | selectattr('source_label', 'equalto', src_label) | list %}
+      {% set active_count = src_items | selectattr('deadline', 'ne', None) | rejectattr('deadline', 'lt', today) | list | length + src_items | selectattr('deadline', 'none') | list | length %}
+      <div class="cnu-group">
+        <button type="button" class="cnu-group-toggle" onclick="toggleGroup(this)">
+          <span class="cnu-chevron">▼</span>
+          <span class="cnu-group-label">{{ src_label }}</span>
+          <span class="cnu-group-count">{{ src_items | length }}건</span>
+          {% set expired_n = src_items | selectattr('deadline') | selectattr('deadline', 'lt', today) | list | length %}
+          {% if expired_n > 0 %}
+          <span class="cnu-group-expired-badge">마감 {{ expired_n }}</span>
+          {% endif %}
+        </button>
+
+        <div class="cnu-group-body">
+          {% for item in src_items %}
+            {% set is_expired = item.deadline and item.deadline < today %}
+            <div class="cnu-card {% if is_expired %}cnu-card--expired{% endif %}">
+              <div class="cnu-card-top">
+                {% if is_expired %}
+                <span class="cnu-badge-expired">마감됨</span>
+                {% elif item.deadline %}
+                <span class="cnu-deadline">⏰ ~{{ item.deadline }}</span>
+                {% endif %}
+                {% if item.posted_date %}
+                <span class="cnu-date">{{ item.posted_date }}</span>
+                {% endif %}
+              </div>
+
+              <a href="{{ item.link }}" target="_blank" rel="noopener" class="cnu-title">
+                {{ item.title }}
+              </a>
+
+              {% if item.summary %}
+              <div class="cnu-summary">{{ item.summary | replace('\n', '<br>') | safe }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
   {% else %}
   <div class="empty-state" style="padding:3rem 0">
     <p class="empty-text">등록된 항목이 없습니다.</p>
@@ -64,47 +89,113 @@
 
 {% block scripts %}
 <style>
+/* ── 그룹 ── */
+.cnu-group { margin-bottom: .65rem; }
+
+.cnu-group-toggle {
+  width: 100%; display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .75rem;
+  background: rgba(0,0,0,.03); border: 1.5px solid var(--line);
+  border-radius: 10px; cursor: pointer;
+  font-size: .88rem; font-weight: 700; color: var(--text-1);
+  text-align: left; transition: background .12s;
+}
+.cnu-group-toggle:hover { background: rgba(37,99,235,.06); }
+
+.cnu-chevron {
+  font-size: .7rem; transition: transform .2s; display: inline-block;
+}
+.cnu-group-label { flex: 1; }
+.cnu-group-count {
+  font-size: .72rem; font-weight: 400; color: var(--muted);
+}
+.cnu-group-expired-badge {
+  font-size: .68rem; font-weight: 700;
+  background: rgba(0,0,0,.08); color: var(--muted);
+  padding: 1px 7px; border-radius: 20px;
+}
+
+/* 접힌 상태 */
+.cnu-group-body {
+  display: flex; flex-direction: column; gap: .4rem;
+  margin-top: .4rem;
+  overflow: hidden;
+}
+.cnu-group.is-closed .cnu-group-body { display: none; }
+.cnu-group.is-closed .cnu-chevron { transform: rotate(-90deg); }
+.cnu-group.is-closed .cnu-group-toggle { border-radius: 10px; }
+
+/* ── 카드 ── */
 .cnu-card {
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: .875rem 1rem;
-  background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 12px;
+  padding: .875rem 1rem; background: var(--surface);
   display: flex; flex-direction: column; gap: .45rem;
   transition: border-color .15s;
 }
-.cnu-card:hover { border-color: var(--primary); }
+.cnu-card:hover:not(.cnu-card--expired) { border-color: var(--primary); }
+
+/* 만료 카드 비활성화 */
+.cnu-card--expired {
+  opacity: .45;
+  filter: grayscale(.4);
+}
+.cnu-card--expired .cnu-title { pointer-events: none; color: var(--muted); }
 
 .cnu-card-top {
   display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
-}
-.cnu-source-badge {
-  font-size: .72rem; font-weight: 700;
-  background: rgba(37,99,235,.1); color: var(--primary);
-  padding: 1px 8px; border-radius: 20px;
-  flex-shrink: 0;
 }
 .cnu-deadline {
   font-size: .72rem; font-weight: 700; color: #b45309;
   background: #fef3c7; padding: 1px 8px; border-radius: 20px;
 }
-.cnu-expired { color:#991b1b; background:#fee2e2; }
+.cnu-badge-expired {
+  font-size: .72rem; font-weight: 700; color: #6b7280;
+  background: rgba(0,0,0,.08); padding: 1px 8px; border-radius: 20px;
+}
 .cnu-date { font-size: .72rem; color: var(--muted); }
 
 .cnu-title {
   font-size: .95rem; font-weight: 700;
-  text-decoration: none; color: var(--text-1);
-  line-height: 1.4;
+  text-decoration: none; color: var(--text-1); line-height: 1.4;
 }
 .cnu-title:hover { color: var(--primary); text-decoration: underline; }
 
 .cnu-summary {
   font-size: .82rem; color: var(--muted);
   padding: .5rem .65rem;
-  background: rgba(0,0,0,.025);
-  border-radius: 6px;
+  background: rgba(0,0,0,.025); border-radius: 6px;
   border-left: 3px solid var(--primary);
 }
-.cnu-summary p { margin: .15rem 0; }
-.cnu-summary ul { margin: .2rem 0; padding-left: 1.2rem; }
+
+/* 모바일 */
+@media (max-width: 600px) {
+  .cnu-group-toggle { font-size: .82rem; }
+  .cnu-title { font-size: .88rem; }
+}
 </style>
+
+<script>
+function toggleGroup(btn) {
+  const group   = btn.closest('.cnu-group');
+  const body    = group.querySelector('.cnu-group-body');
+  const chevron = btn.querySelector('.cnu-chevron');
+  const closing = !group.classList.contains('is-closed');
+
+  if (closing) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.style.transition = 'max-height .25s ease, opacity .2s';
+    body.style.opacity = '1';
+    requestAnimationFrame(() => { body.style.maxHeight = '0'; body.style.opacity = '0'; });
+    body.addEventListener('transitionend', () => {
+      if (body.style.maxHeight === '0px') group.classList.add('is-closed');
+    }, { once: true });
+  } else {
+    group.classList.remove('is-closed');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.style.opacity = '1';
+    body.style.transition = 'max-height .28s ease, opacity .2s';
+    body.addEventListener('transitionend', () => { body.style.maxHeight = 'none'; }, { once: true });
+  }
+}
+</script>
 {% endblock %}

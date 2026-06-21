@@ -7615,17 +7615,11 @@ async def cnu_board(
     items = (
         db.query(CnuItem)
         .filter(CnuItem.board_type == tab)
-        .filter(
-            (CnuItem.deadline == None) | (CnuItem.deadline >= today_str)
-        )
         .order_by(CnuItem.created_at.desc())
         .all()
     )
     counts = {
-        bt: db.query(CnuItem).filter(
-            CnuItem.board_type == bt,
-            (CnuItem.deadline == None) | (CnuItem.deadline >= today_str),
-        ).count()
+        bt: db.query(CnuItem).filter(CnuItem.board_type == bt).count()
         for bt in valid_tabs
     }
     return _render(request, "cnu/board.html",

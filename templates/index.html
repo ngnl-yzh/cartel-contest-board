@@ -51,7 +51,8 @@
     <div class="fc-viewport">
       <div class="fc-track" id="featuredCarousel">
         {% for comp in featured %}
-        <a href="/competition/{{ comp.id }}" class="fc-card status-{{ comp.status }}">
+        <div class="fc-card-wrap" style="position:relative;flex-shrink:0;display:flex">
+        <a href="/competition/{{ comp.id }}" class="fc-card status-{{ comp.status }}" style="flex:1">
           {# 이미지 영역 #}
           <div class="fc-card-img"
             {% if comp.image %}
@@ -94,6 +95,13 @@
             <p class="fc-card-views">조회 {{ comp.view_count }}</p>
           </div>
         </a>
+        {% if current_member %}
+        <button class="card-heart-btn {% if comp.id in user_scrap_ids %}hearted{% endif %}"
+                data-comp-id="{{ comp.id }}" title="관심 공모전">
+          {{ '❤️' if comp.id in user_scrap_ids else '🤍' }}
+        </button>
+        {% endif %}
+        </div>
         {% endfor %}
       </div>
     </div>
@@ -368,9 +376,15 @@
   will-change: transform;
 }
 
+/* ── 카드 래퍼 (하트 버튼 포지셔닝용) ── */
+.fc-card-wrap {
+  flex: 0 0 calc(20% - 12px);   /* 5장 */
+  min-width: 0;
+  position: relative;
+}
 /* ── 카드 ── */
 .fc-card {
-  flex: 0 0 calc(20% - 12px);   /* 5장 */
+  flex: 1;
   min-width: 0;
   border-radius: 14px;
   overflow: hidden;
@@ -646,7 +660,8 @@ document.querySelectorAll('.card-heart-btn').forEach(btn => {
   border: none; border-radius: 50%; width: 34px; height: 34px;
   font-size: 1rem; cursor: pointer; display: flex; align-items: center;
   justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.15);
-  transition: transform .15s, background .15s; z-index: 2;
+  transition: transform .15s, background .15s; z-index: 10;
+  pointer-events: all;
 }
 .card-heart-btn:hover { transform: scale(1.15); background: #fff; }
 .card-heart-btn.hearted { background: rgba(255,230,230,.9); }
