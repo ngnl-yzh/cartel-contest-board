@@ -173,6 +173,7 @@
           <a href="/board/social"  class="c-mobile-link c-mobile-sub {% if '/board/social'  in request.url.path %}is-active{% endif %}">🤝 친목게시판</a>
           <a href="/board/project" class="c-mobile-link c-mobile-sub {% if '/board/project' in request.url.path %}is-active{% endif %}">🛠️ 프로젝트</a>
         </div>
+        <a href="/cnu"      class="c-mobile-link {% if request.url.path.startswith('/cnu') %}is-active{% endif %}">🏫 CNU 보드</a>
         <a href="/course"   class="c-mobile-link {% if request.url.path.startswith('/course') %}is-active{% endif %}">📚 Course</a>
         <a href="/chat"     class="c-mobile-link {% if '/chat'     in request.url.path %}is-active{% endif %}">💬 Chat</a>
         <a href="/members"  class="c-mobile-link {% if '/members'  in request.url.path %}is-active{% endif %}">👥 Member</a>
