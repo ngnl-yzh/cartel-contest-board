@@ -10,17 +10,16 @@
   </div>
 
   {# ── 탭 ── #}
-  <div style="display:flex;border-bottom:2px solid var(--line);margin-bottom:1.25rem">
+  <div class="cnu-tab-bar">
     {% set tabs = [
       ('scholarship', '🎓 장학공지',    counts.scholarship),
       ('job_contest', '💼 공모전·취업', counts.job_contest),
       ('program',     '📚 참여프로그램', counts.program),
     ] %}
     {% for t_key, t_label, t_count in tabs %}
-    <a href="/cnu?tab={{ t_key }}"
-       style="display:inline-flex;align-items:center;gap:.35rem;padding:.55rem 1rem;font-size:.88rem;font-weight:600;text-decoration:none;border-bottom:2.5px solid {{ 'var(--primary)' if tab == t_key else 'transparent' }};color:{{ 'var(--primary)' if tab == t_key else 'var(--muted)' }};margin-bottom:-2px;transition:color .15s,border-color .15s">
+    <a href="/cnu?tab={{ t_key }}" class="cnu-tab {% if tab == t_key %}cnu-tab--active{% endif %}">
       {{ t_label }}
-      <span style="font-size:.72rem;font-weight:700;background:{{ 'var(--primary)' if tab == t_key else 'rgba(0,0,0,.07)' }};color:{{ '#fff' if tab == t_key else 'inherit' }};padding:1px 7px;border-radius:10px">{{ t_count }}</span>
+      <span class="cnu-tab-count">{{ t_count }}</span>
     </a>
     {% endfor %}
   </div>
@@ -89,6 +88,36 @@
 
 {% block scripts %}
 <style>
+/* ── 탭 바 ── */
+.cnu-tab-bar {
+  display: flex;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cnu-tab-bar::-webkit-scrollbar { display: none; }
+
+.cnu-tab {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .55rem .85rem;
+  font-size: .88rem; font-weight: 600;
+  text-decoration: none; white-space: nowrap;
+  color: var(--muted);
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.cnu-tab--active { color: var(--primary); border-bottom-color: var(--primary); }
+.cnu-tab-count {
+  font-size: .72rem; font-weight: 700;
+  background: rgba(0,0,0,.07); color: inherit;
+  padding: 1px 7px; border-radius: 10px;
+}
+.cnu-tab--active .cnu-tab-count { background: var(--primary); color: #fff; }
+
 /* ── 그룹 ── */
 .cnu-group { margin-bottom: .65rem; }
 
@@ -169,8 +198,12 @@
 
 /* 모바일 */
 @media (max-width: 600px) {
-  .cnu-group-toggle { font-size: .82rem; }
+  .cnu-tab { padding: .5rem .65rem; font-size: .82rem; }
+  .cnu-group-toggle { font-size: .82rem; padding: .45rem .6rem; }
+  .cnu-group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .cnu-card { padding: .75rem .85rem; }
   .cnu-title { font-size: .88rem; }
+  .cnu-summary { font-size: .78rem; }
 }
 </style>
 
