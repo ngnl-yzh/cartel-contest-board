@@ -7592,6 +7592,7 @@ async def _bg_summarize_all(job_id: str, item_ids: list):
                     item.summary = await _cnu_summarize(item.title, item.link)
                     db.commit()
             except Exception:
+                db.rollback()  # 세션 오류 상태 해제 — 다음 항목 처리 가능하게
                 _cnu_jobs[job_id]["errors"] += 1
             _cnu_jobs[job_id]["done"] = i + 1
         _cnu_jobs[job_id]["status"] = "done"
