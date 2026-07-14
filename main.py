@@ -979,8 +979,8 @@ async def index(
         .scalar() or 0
     )
 
-    # ── 메인 그리드: 마감된 공모전 제외 ──
-    query = db.query(Competition).filter(Competition.deadline >= today, Competition.is_active.isnot(False))
+    # ── 메인 그리드: is_active 기준으로만 필터링 (마감 포함 표시) ──
+    query = db.query(Competition).filter(Competition.is_active.isnot(False))
     if tag and tag != "all":
         query = query.filter(Competition.tags.like(f'%"{tag}"%'))
     if q:
@@ -997,10 +997,11 @@ async def index(
     elif sort == "newest":
         query = query.order_by(Competition.created_at.desc())
     else:
-        query = query.order_by(Competition.deadline.asc())
+        # 마감 전: 데드라인 오름차순, 마감 후: 데드라인 내림차순(최근 마감 먼저)
+        query = query.order_by(active_priority.asc(), Competition.deadline.asc())
 
     all_competitions = _annotate(query.all())
-    # upcoming(이벤트 임박) 공모전을 active 뒤에 배치
+    # upcoming(이벤트 임박) 공모전을 active 뒤에 배치, 마감은 맨 뒤
     if sort == "deadline":
         def _sort_key(c):
             if c.status in ("urgent", "soon", "open"):
@@ -1008,7 +1009,8 @@ async def index(
             if c.status == "upcoming":
                 ev = c.upcoming_event
                 return (1, ev[3] if ev else 99)
-            return (2, 0)
+            # 마감: 최근 마감 먼저 (-days_left로 정렬, days_left는 음수이므로 양수로 변환)
+            return (2, -c.days_left)
         all_competitions.sort(key=_sort_key)
 
     # 단계별 카운트 (필터 전)
