@@ -650,6 +650,9 @@ document.querySelectorAll('.card-heart-btn').forEach(btn => {
       const data = await res.json();
       btn.classList.toggle('hearted', data.scrapped);
       btn.textContent = data.scrapped ? '❤️' : '🤍';
+      btn.classList.remove('popping');
+      void btn.offsetWidth;  /* reflow로 애니메이션 재시작 */
+      btn.classList.add('popping');
     }
   });
 });

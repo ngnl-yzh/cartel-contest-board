@@ -3503,3 +3503,27 @@ select {
 .stage-reviewing  { background: rgba(245,158,11,.25); color: #fef3c7; border: 1px solid rgba(245,158,11,.4); }
 .stage-preparing  { background: rgba(139,92,246,.25); color: #ede9fe; border: 1px solid rgba(139,92,246,.4); }
 .stage-ended      { background: rgba(100,116,139,.25); color: #e2e8f0; border: 1px solid rgba(100,116,139,.4); }
+
+/* ══════════════════════════════════════════════════════════════
+   마감 공모전 카드 — 그리드에서 은은하게 가라앉는 처리
+   ══════════════════════════════════════════════════════════════ */
+.comp-card.status-closed {
+  opacity: .6;
+  filter: grayscale(.4) saturate(.8);
+  transition: opacity var(--transition), filter var(--transition),
+              transform var(--transition), box-shadow var(--transition);
+}
+.comp-card.status-closed:hover {
+  opacity: .95;
+  filter: none;
+}
+.comp-card.status-closed .card-thumb { filter: grayscale(.5); }
+.comp-card.status-closed:hover .card-thumb { filter: none; }
+
+/* 하트 버튼 토글 팝 애니메이션 */
+@keyframes heart-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.35) rotate(-6deg); }
+  100% { transform: scale(1); }
+}
+.card-heart-btn.popping { animation: heart-pop .35s cubic-bezier(.2,.8,.3,1.2); }

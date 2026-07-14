@@ -4,9 +4,10 @@
 {% block content %}
 <main class="container" style="max-width:880px;padding-top:24px;padding-bottom:80px">
 
-  <div style="margin-bottom:1.25rem">
-    <p class="eyebrow" style="font-size:.78rem;color:var(--muted);margin:0 0 4px">전남대학교</p>
-    <h1 style="font-size:1.5rem;font-weight:800;margin:0">CNU 보드</h1>
+  <div class="cnu-header">
+    <p class="eyebrow" style="font-size:.78rem;color:var(--muted);margin:0 0 4px;letter-spacing:.08em">CHONNAM NATIONAL UNIVERSITY</p>
+    <h1 style="font-size:1.5rem;font-weight:800;margin:0">🏫 CNU 보드</h1>
+    <p style="font-size:.85rem;color:var(--muted);margin:6px 0 0">장학 · 공모전 · 취업 · 교육프로그램 공지를 한곳에서 모아봅니다.</p>
   </div>
 
   {# ── 탭 ── #}
@@ -26,6 +27,15 @@
 
   {# ── 소스별 그룹 접기/펼치기 ── #}
   {% if items %}
+    {# 소스별 고유 색상 — 그룹/카드 액센트 #}
+    {% set src_colors = {
+      'jnu_scholarship': '#2563eb',
+      'jnu_job':         '#0891b2',
+      'jnu_contest':     '#7c3aed',
+      'capd':            '#059669',
+      'sojoong':         '#d97706',
+      'aicoss':          '#db2777',
+    } %}
     {# 이 탭에 존재하는 소스 목록 추출 (순서 유지) #}
     {% set sources_seen = [] %}
     {% for item in items %}
@@ -36,16 +46,17 @@
 
     {% for src_label in sources_seen %}
       {% set src_items = items | selectattr('source_label', 'equalto', src_label) | list %}
-      {% set active_count = src_items | selectattr('deadline', 'ne', None) | rejectattr('deadline', 'lt', today) | list | length + src_items | selectattr('deadline', 'none') | list | length %}
-      <div class="cnu-group">
+      {% set src_color = src_colors.get(src_items[0].source, 'var(--primary)') %}
+      <div class="cnu-group" style="--src-color: {{ src_color }}">
         <button type="button" class="cnu-group-toggle" onclick="toggleGroup(this)">
-          <span class="cnu-chevron">▼</span>
+          <span class="cnu-src-dot"></span>
           <span class="cnu-group-label">{{ src_label }}</span>
           <span class="cnu-group-count">{{ src_items | length }}건</span>
           {% set expired_n = src_items | selectattr('deadline') | selectattr('deadline', 'lt', today) | list | length %}
           {% if expired_n > 0 %}
           <span class="cnu-group-expired-badge">마감 {{ expired_n }}</span>
           {% endif %}
+          <span class="cnu-chevron">▼</span>
         </button>
 
         <div class="cnu-group-body">
@@ -68,7 +79,10 @@
               </a>
 
               {% if item.summary %}
-              <div class="cnu-summary">{{ item.summary | replace('\n', '<br>') | safe }}</div>
+              <div class="cnu-summary">
+                <span class="cnu-summary-tag">🤖 AI 요약</span>
+                {{ item.summary | replace('\n', '<br>') | safe }}
+              </div>
               {% endif %}
             </div>
           {% endfor %}
@@ -110,6 +124,11 @@
   transition: color .15s, border-color .15s;
   flex-shrink: 0;
 }
+.cnu-tab:hover:not(.cnu-tab--active) {
+  color: var(--text-1);
+  background: rgba(0,0,0,.03);
+  border-radius: 8px 8px 0 0;
+}
 .cnu-tab--active { color: var(--primary); border-bottom-color: var(--primary); }
 .cnu-tab-count {
   font-size: .72rem; font-weight: 700;
@@ -119,20 +138,31 @@
 .cnu-tab--active .cnu-tab-count { background: var(--primary); color: #fff; }
 
 /* ── 그룹 ── */
-.cnu-group { margin-bottom: .65rem; }
+.cnu-group { margin-bottom: .75rem; }
 
 .cnu-group-toggle {
-  width: 100%; display: flex; align-items: center; gap: .5rem;
-  padding: .5rem .75rem;
-  background: rgba(0,0,0,.03); border: 1.5px solid var(--line);
+  width: 100%; display: flex; align-items: center; gap: .55rem;
+  padding: .55rem .8rem;
+  background: color-mix(in srgb, var(--src-color, var(--primary)) 5%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--src-color, var(--primary)) 22%, transparent);
+  border-left: 4px solid var(--src-color, var(--primary));
   border-radius: 10px; cursor: pointer;
   font-size: .88rem; font-weight: 700; color: var(--text-1);
-  text-align: left; transition: background .12s;
+  text-align: left; transition: background .12s, border-color .12s;
 }
-.cnu-group-toggle:hover { background: rgba(37,99,235,.06); }
+.cnu-group-toggle:hover {
+  background: color-mix(in srgb, var(--src-color, var(--primary)) 10%, transparent);
+}
+
+.cnu-src-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  background: var(--src-color, var(--primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--src-color, var(--primary)) 18%, transparent);
+}
 
 .cnu-chevron {
   font-size: .7rem; transition: transform .2s; display: inline-block;
+  color: var(--muted);
 }
 .cnu-group-label { flex: 1; }
 .cnu-group-count {
@@ -156,12 +186,18 @@
 
 /* ── 카드 ── */
 .cnu-card {
-  border: 1.5px solid var(--line); border-radius: 12px;
+  border: 1.5px solid var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--src-color, var(--primary)) 45%, transparent);
+  border-radius: 12px;
   padding: .875rem 1rem; background: var(--surface);
   display: flex; flex-direction: column; gap: .45rem;
-  transition: border-color .15s;
+  transition: border-color .15s, transform .15s, box-shadow .15s;
 }
-.cnu-card:hover:not(.cnu-card--expired) { border-color: var(--primary); }
+.cnu-card:hover:not(.cnu-card--expired) {
+  border-color: var(--src-color, var(--primary));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,.06);
+}
 
 /* 만료 카드 비활성화 */
 .cnu-card--expired {
@@ -193,8 +229,18 @@
   font-size: .82rem; color: var(--muted);
   padding: .5rem .65rem;
   background: rgba(0,0,0,.025); border-radius: 6px;
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid var(--src-color, var(--primary));
 }
+.cnu-summary-tag {
+  display: block;
+  font-size: .68rem; font-weight: 800;
+  color: var(--src-color, var(--primary));
+  letter-spacing: .02em;
+  margin-bottom: 3px;
+  opacity: .9;
+}
+
+.cnu-header { margin-bottom: 1.25rem; }
 
 /* 모바일 */
 @media (max-width: 600px) {
