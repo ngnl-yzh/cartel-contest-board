@@ -6,16 +6,23 @@
 """
 import asyncio
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urljoin as _urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
+_KST = timezone(timedelta(hours=9))
+
+
+def _kst_today() -> date:
+    """서버 타임존과 무관하게 한국 기준 오늘 날짜"""
+    return datetime.now(_KST).date()
+
 
 def _current_year() -> int:
-    return date.today().year
+    return _kst_today().year
 
 
 HEADERS = {
@@ -145,7 +152,7 @@ def _parse_range_date(text: str) -> Optional[str]:
         try:
             dt = date(y, mo, d)
             # 이미 14일 이상 지난 날짜면 내년도로 보정
-            if dt < date.today() - timedelta(days=14):
+            if dt < _kst_today() - timedelta(days=14):
                 dt = date(y + 1, mo, d)
             return dt.isoformat()
         except ValueError:

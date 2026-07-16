@@ -25,9 +25,7 @@ try:
 except ImportError:
     _PARSER = "html.parser"
 
-from crawler import HEADERS, _norm
-
-_YEAR = date.today().year
+from crawler import HEADERS, _norm, _kst_today
 
 
 # ─── 공통 헬퍼 ────────────────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ def _is_this_year(date_str: str) -> bool:
         return True  # 날짜 없으면 포함
     m = re.search(r"(\d{4})", date_str)
     if m:
-        return int(m.group(1)) >= _YEAR
+        return int(m.group(1)) >= _kst_today().year
     return True
 
 
@@ -67,7 +65,7 @@ def _is_not_expired(deadline_str: Optional[str]) -> bool:
         return True
     try:
         dl = datetime.fromisoformat(deadline_str).date()
-        return dl >= date.today()
+        return dl >= _kst_today()
     except Exception:
         return True
 

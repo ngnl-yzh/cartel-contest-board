@@ -7610,8 +7610,7 @@ async def cnu_board(
     tab: str = "scholarship",
     db: Session = Depends(get_db),
 ):
-    from datetime import date as _date
-    today_str = _date.today().isoformat()
+    today_str = _today().isoformat()
     valid_tabs = ("scholarship", "job_contest", "program")
     if tab not in valid_tabs:
         tab = "scholarship"
@@ -7635,8 +7634,7 @@ async def cnu_board(
 async def admin_cnu_page(request: Request, db: Session = Depends(get_db)):
     if r := _admin_redirect(request):
         return r
-    from datetime import date as _date
-    today_str = _date.today().isoformat()
+    today_str = _today().isoformat()
     all_items = (
         db.query(CnuItem)
         .order_by(CnuItem.created_at.desc())
@@ -7758,8 +7756,7 @@ async def admin_cnu_purge_expired(
     """마감 지난 항목 일괄 삭제"""
     if r := _admin_redirect(request):
         return r
-    from datetime import date as _date
-    today = _date.today().isoformat()
+    today = _today().isoformat()
     deleted = db.query(CnuItem).filter(
         CnuItem.deadline != None,
         CnuItem.deadline < today,

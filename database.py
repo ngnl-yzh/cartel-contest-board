@@ -3,7 +3,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from models import Base
+from models import Base, _kst_now
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./competitions.db")
 
@@ -140,8 +140,8 @@ def init_db():
                 if not existing:
                     conn.execute(_t(
                         "INSERT INTO chat_room_members (room_id, member_id, role, joined_at) "
-                        "VALUES (:rid, :mid, 'owner', CURRENT_TIMESTAMP)"
-                    ), {"rid": room_id, "mid": owner_id})
+                        "VALUES (:rid, :mid, 'owner', :now)"
+                    ), {"rid": room_id, "mid": owner_id, "now": _kst_now()})
 
         # 기존 TeamMember(team_id=NULL) 데이터를 위해 기본 팀 생성
         rows = conn.execute(_t(
@@ -156,8 +156,8 @@ def init_db():
             else:
                 conn.execute(_t(
                     "INSERT INTO teams (competition_id, name, description, submitted, created_at) "
-                    "VALUES (:cid, '기본 팀', '', FALSE, CURRENT_TIMESTAMP)"
-                ), {"cid": cid})
+                    "VALUES (:cid, '기본 팀', '', FALSE, :now)"
+                ), {"cid": cid, "now": _kst_now()})
                 tid = conn.execute(_t(
                     "SELECT id FROM teams WHERE competition_id = :cid ORDER BY id DESC LIMIT 1"
                 ), {"cid": cid}).fetchone()[0]
