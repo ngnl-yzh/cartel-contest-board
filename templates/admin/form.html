@@ -13,6 +13,17 @@
         <a href="/admin/competitions" class="btn btn-outline">공모전 관리</a>
     </div>
 
+    {% if comp and comp.is_active == False %}
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:1rem;
+                background:rgba(239,68,68,.07);border:1.5px solid rgba(239,68,68,.3);border-radius:10px">
+      <span style="font-size:1.1rem">🔴</span>
+      <div style="font-size:.88rem">
+        <strong style="color:#dc2626">이 공모전은 현재 비공개 상태입니다</strong> — 공모전 보드에 표시되지 않습니다.<br>
+        <span style="color:var(--muted);font-size:.82rem">자동 수집된 공모전은 비공개로 시작합니다. 아래 <strong>"공개 (공모전 보드에 표시)"</strong>를 체크하고 저장하면 공개됩니다.</span>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="admin-form-layout">
       <section class="assistant-panel">
         <h2>GPT 정리</h2>
@@ -125,6 +136,11 @@
               <label class="check-row">
                 <input type="checkbox" name="is_featured" value="true" {% if comp and comp.is_featured %}checked{% endif %}>
                 <span>첫 화면 주목 공모전에 노출</span>
+              </label>
+              <label class="check-row">
+                <input type="checkbox" name="is_active" value="true"
+                       {% if not comp or comp.is_active != False %}checked{% endif %}>
+                <span>공개 (공모전 보드에 표시)</span>
               </label>
             </label>
           </div>

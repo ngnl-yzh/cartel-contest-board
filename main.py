@@ -2509,6 +2509,7 @@ async def admin_add(
     link: str = Form(""),
     description: str = Form(""),
     is_featured: bool = Form(False),
+    is_active: bool = Form(False),
     max_members: Optional[str] = Form(None),
     stage_override: Optional[str] = Form(None),
     submission_docs: List[str] = Form(default=[]),
@@ -2540,6 +2541,7 @@ async def admin_add(
         award_date=date.fromisoformat(award_date) if award_date else None,
         prize=prize, link=link, description=description,
         image=image, max_members=_optional_int(max_members, "최대 팀 인원"), is_featured=is_featured,
+        is_active=is_active,
         stage_override=stage_override.strip() if stage_override and stage_override.strip() else None,
         submission_docs=json.dumps(_all_docs, ensure_ascii=False),
         files=json.dumps(await _save_files(files), ensure_ascii=False),
@@ -2583,7 +2585,8 @@ async def admin_edit(
     award_date: Optional[str] = Form(None),
     review_dates_json: str = Form("[]"),
     prize: str = Form(""), link: str = Form(""), description: str = Form(""),
-    is_featured: bool = Form(False), max_members: Optional[str] = Form(None),
+    is_featured: bool = Form(False), is_active: bool = Form(False),
+    max_members: Optional[str] = Form(None),
     stage_override: Optional[str] = Form(None),
     submission_docs: List[str] = Form(default=[]),
     submission_docs_extra: str = Form(""),
@@ -2618,7 +2621,8 @@ async def admin_edit(
         _review_dates = []
     comp.review_dates = json.dumps(_review_dates, ensure_ascii=False)
     comp.prize = prize; comp.link = link; comp.description = description
-    comp.is_featured = is_featured; comp.max_members = _optional_int(max_members, "최대 팀 인원")
+    comp.is_featured = is_featured; comp.is_active = is_active
+    comp.max_members = _optional_int(max_members, "최대 팀 인원")
     comp.stage_override = stage_override.strip() if stage_override and stage_override.strip() else None
     # 필수 제출 서류: 체크박스 목록 + 직접 입력 합산
     _extra_docs = [d.strip() for d in submission_docs_extra.split(",") if d.strip()]
