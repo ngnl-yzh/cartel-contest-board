@@ -73,12 +73,16 @@
 
     {% if competitions %}
 
-    {# ── 일괄 삭제 액션 바 ── #}
+    {# ── 일괄 작업 액션 바 ── #}
     <div class="bulk-del-bar" id="bulkDelBar" style="display:none">
       <span class="bulk-del-count" id="bulkDelCount">0개 선택됨</span>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" class="btn btn-outline btn-sm"
                 onclick="clearDelSelection()">선택 해제</button>
+        <button type="button" class="btn btn-success btn-sm"
+                onclick="submitBulkActive('1')">🟢 공개로 전환</button>
+        <button type="button" class="btn btn-outline btn-sm"
+                onclick="submitBulkActive('0')">🔴 비공개로 전환</button>
         <button type="button" class="btn btn-danger btn-sm"
                 onclick="submitBulkDelete()">선택 항목 삭제</button>
       </div>
@@ -248,14 +252,29 @@ function submitBulkDelete() {
   var ids = Array.from(document.querySelectorAll('.comp-chk:checked')).map(function(c){ return c.value; });
   if (!ids.length) return;
   if (!confirm(ids.length + '개 공모전을 삭제합니다. 복구할 수 없습니다. 계속하시겠습니까?')) return;
+  postIds('/admin/delete-bulk', ids, null);
+}
+function submitBulkActive(active) {
+  var ids = Array.from(document.querySelectorAll('.comp-chk:checked')).map(function(c){ return c.value; });
+  if (!ids.length) return;
+  var verb = active === '1' ? '공개' : '비공개';
+  if (!confirm(ids.length + '개 공모전을 ' + verb + ' 상태로 전환합니다. 계속하시겠습니까?')) return;
+  postIds('/admin/competitions/bulk-active', ids, active);
+}
+function postIds(action, ids, active) {
   var form = document.createElement('form');
   form.method = 'post';
-  form.action = '/admin/delete-bulk';
+  form.action = action;
   ids.forEach(function(id) {
     var inp = document.createElement('input');
     inp.type = 'hidden'; inp.name = 'ids'; inp.value = id;
     form.appendChild(inp);
   });
+  if (active !== null) {
+    var a = document.createElement('input');
+    a.type = 'hidden'; a.name = 'active'; a.value = active;
+    form.appendChild(a);
+  }
   document.body.appendChild(form);
   form.submit();
 }

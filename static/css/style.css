@@ -633,6 +633,12 @@ select {
   color: #fff;
 }
 
+.btn-success {
+  background: #16a34a;
+  color: #fff;
+}
+.btn-success:hover { background: #15803d; }
+
 .btn-sm {
   min-height: 32px;
   padding: 5px 10px;

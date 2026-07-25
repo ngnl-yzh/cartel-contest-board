@@ -128,11 +128,12 @@
     {# ── 단계 필터 탭 ── #}
     <div class="stage-tab-bar">
       <a href="/competitions?tag={{ current_tag | urlencode }}&sort={{ current_sort | urlencode }}&q={{ query | urlencode }}"
-         class="stage-tab {% if not current_stage %}active{% endif %}">
-        전체
-        <span class="stage-tab-count">{{ stage_counts.values() | sum }}</span>
+         class="stage-tab stage-tab-1 {% if not current_stage %}active{% endif %}"
+         title="현재 접수 중인 공모전">
+        📝 접수중
+        <span class="stage-tab-count">{{ stage_counts['접수중'] }}</span>
       </a>
-      {% for s, icon, idx in [('접수중','📝',1), ('심사중','🔍',2), ('발표준비중','📢',3)] %}
+      {% for s, icon, idx in [('심사중','🔍',2), ('발표준비중','📢',3)] %}
       <a href="/competitions?tag={{ current_tag | urlencode }}&sort={{ current_sort | urlencode }}&q={{ query | urlencode }}&stage={{ s | urlencode }}"
          class="stage-tab stage-tab-{{ idx }} {% if current_stage == s %}active{% endif %}">
         {{ icon }} {{ s }}

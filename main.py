@@ -1017,9 +1017,11 @@ async def index(
     _STAGES = ["접수중", "심사중", "발표준비중", "마감"]
     stage_counts = {s: sum(1 for c in all_competitions if c.comp_stage == s) for s in _STAGES}
 
-    # 단계 필터
+    # 단계 필터 — 미지정(전체)이면 접수중만 노출, 나머지 단계는 각 탭에서 확인
     if stage and stage in _STAGES:
         all_competitions = [c for c in all_competitions if c.comp_stage == stage]
+    else:
+        all_competitions = [c for c in all_competitions if c.comp_stage == "접수중"]
 
     # 페이지네이션
     _PAGE_SIZE = 12
@@ -2481,6 +2483,28 @@ async def admin_toggle_active(
         comp.is_active = not bool(comp.is_active if comp.is_active is not None else True)
         db.commit()
     return RedirectResponse(url="/admin/competitions", status_code=303)
+
+
+@app.post("/admin/competitions/bulk-active")
+async def admin_bulk_active(
+    request: Request,
+    ids: list[int] = Form(...),
+    active: str = Form("1"),
+    db: Session = Depends(get_db),
+):
+    """선택한 공모전들을 일괄 공개(활성) 또는 비공개(비활성) 처리"""
+    if r := _privileged_redirect(request, db):
+        return r
+    make_active = active == "1"
+    changed = db.query(Competition).filter(Competition.id.in_(ids)).update(
+        {Competition.is_active: make_active}, synchronize_session=False
+    )
+    db.commit()
+    verb = "공개" if make_active else "비공개"
+    return RedirectResponse(
+        url=f"/admin/competitions?msg=공모전 {changed}건을 {verb} 처리했습니다",
+        status_code=303,
+    )
 
 
 # ── 공모전 CRUD ───────────────────────────────────────────────────────────────
