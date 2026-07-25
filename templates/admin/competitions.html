@@ -5,6 +5,15 @@
 <main class="admin-page">
   <div class="container">
 
+    {% if msg %}
+    <div style="margin-bottom:16px;padding:12px 18px;border-radius:12px;
+      background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.35);
+      display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.2rem">✅</span>
+      <div><strong>{{ msg }}</strong></div>
+    </div>
+    {% endif %}
+
     {% if bulk_added or bulk_errors %}
     <div style="margin-bottom:16px;padding:12px 18px;border-radius:12px;
       background:{% if bulk_errors %}rgba(234,179,8,.1){% else %}rgba(34,197,94,.1){% endif %};
@@ -27,6 +36,13 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <a href="/admin/crawl"    class="btn btn-outline">🔍 크롤링</a>
         <a href="/admin/settings" class="btn btn-outline">⚙ 분야 설정</a>
+        {% set closed_n = competitions | selectattr('deadline', 'lt', today) | list | length %}
+        {% if closed_n > 0 %}
+        <form method="post" action="/admin/purge-closed" style="margin:0"
+              onsubmit="return confirm('마감일이 지난 공모전 {{ closed_n }}건을 정리합니다.\n\n· 발표·시상·심사 일정이 남은 공모전\n· 수상 실적이 기록된 공모전\n위 항목은 자동으로 보존됩니다.\n\n삭제된 공모전은 복구할 수 없습니다. 계속하시겠습니까?')">
+          <button type="submit" class="btn btn-danger">🗑 마감 공모전 정리 ({{ closed_n }})</button>
+        </form>
+        {% endif %}
         <a href="/admin/add"      class="btn btn-primary">공모전 추가</a>
       </div>
     </div>
@@ -44,9 +60,14 @@
         <span>주목 표시</span>
         <strong>{{ competitions | selectattr('is_featured') | list | length }}</strong>
       </div>
+      <div class="stat-card">
+        <span>마감됨</span>
+        <strong>{{ competitions | selectattr('status', 'equalto', 'closed') | list | length }}</strong>
+      </div>
       <div class="stat-card" style="border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04)">
         <span>비활성 (숨김)</span>
-        <strong style="color:#dc2626">{{ competitions | rejectattr('is_active') | list | length }}</strong>
+        {# is_active가 명시적으로 False인 것만 — NULL은 보드에서 공개 취급 #}
+        <strong style="color:#dc2626">{{ competitions | selectattr('is_active', 'equalto', false) | list | length }}</strong>
       </div>
     </div>
 

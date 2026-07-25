@@ -2436,6 +2436,7 @@ async def admin_competitions(
     db: Session = Depends(get_db),
     bulk_added: int = 0,
     bulk_errors: int = 0,
+    msg: str = "",
 ):
     """공모전 관리 페이지"""
     if r := _privileged_redirect(request, db):
@@ -2446,6 +2447,7 @@ async def admin_competitions(
         today=_today(),
         bulk_added=bulk_added,
         bulk_errors=bulk_errors,
+        msg=msg,
     ))
 
 
@@ -2686,6 +2688,55 @@ async def admin_delete_bulk(
         db.delete(comp)
     db.commit()
     return RedirectResponse(url="/admin/competitions", status_code=303)
+
+
+def _has_future_event(comp, today: date) -> bool:
+    """발표·시상·심사 일정 중 아직 오지 않은 것이 있으면 True (마감 후에도 진행 중)"""
+    for attr in ("announcement_date", "award_date"):
+        d = getattr(comp, attr, None)
+        if d and d >= today:
+            return True
+    try:
+        for rd in json.loads(comp.review_dates or "[]"):
+            rd_str = str(rd.get("date", "")).strip()
+            if rd_str and date.fromisoformat(rd_str) >= today:
+                return True
+    except (ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return False
+
+
+@app.post("/admin/purge-closed")
+async def admin_purge_closed(request: Request, db: Session = Depends(get_db)):
+    """마감 공모전 일괄 삭제 — 남은 일정이 있거나 수상 실적이 있는 공모전은 보존"""
+    if r := _privileged_redirect(request, db):
+        return r
+    today = _today()
+    closed = db.query(Competition).filter(Competition.deadline < today).all()
+    deleted = kept = 0
+    for comp in closed:
+        # 발표·시상·심사가 아직 남았으면 진행 중이므로 건너뜀
+        if _has_future_event(comp, today):
+            kept += 1
+            continue
+        # 수상 실적 기록이 있으면 Awards 페이지 보존을 위해 건너뜀
+        has_award = db.query(TeamCompetitionEntry.id).filter(
+            TeamCompetitionEntry.competition_id == comp.id
+        ).first()
+        if has_award:
+            kept += 1
+            continue
+        for item in _from_json(comp.files):
+            _storage_delete(item.get("path") or item.get("saved_name", ""))
+        if comp.image:
+            _storage_delete(comp.image)
+        db.delete(comp)
+        deleted += 1
+    db.commit()
+    msg = f"마감 공모전 {deleted}건 삭제"
+    if kept:
+        msg += f" · 일정·수상기록 있는 {kept}건 보존"
+    return RedirectResponse(url=f"/admin/competitions?msg={msg}", status_code=303)
 
 
 @app.post("/admin/delete-file/{comp_id}")
@@ -6089,7 +6140,7 @@ async def admin_crawl_add(
         prize=item.get("prize", ""),
         link=item.get("link", ""),
         description=f"[{item.get('source_label', '')}에서 자동 수집]\n\n원문 링크: {item.get('link', '')}",
-        is_active=False,  # 자동 추가: 관리자 검토 후 활성화 필요
+        is_active=True,   # 자동 추가: 바로 공개 (편집 폼에서 비공개 전환 가능)
     )
     db.add(comp)
     db.commit()
@@ -6125,7 +6176,7 @@ async def admin_crawl_add_bulk(
             prize=item.get("prize", ""),
             link=item.get("link", ""),
             description=f"[{item.get('source_label', '')}에서 자동 수집]\n\n원문 링크: {item.get('link', '')}",
-            is_active=False,  # 자동 추가: 관리자 검토 후 활성화 필요
+            is_active=True,   # 자동 추가: 바로 공개 (편집 폼에서 비공개 전환 가능)
         )
         db.add(comp)
         added += 1
@@ -6605,7 +6656,7 @@ async def _gpt_process_item(item: dict, db: Session) -> int:
         description  = parsed.get("description", ""),
         image        = saved_image,
         files        = json.dumps(saved_files, ensure_ascii=False),
-        is_active    = False,  # 자동 추가(GPT): 관리자 검토 후 활성화 필요
+        is_active    = True,   # 자동 추가(GPT): 바로 공개 (편집 폼에서 비공개 전환 가능)
     )
     db.add(comp)
     db.commit()
